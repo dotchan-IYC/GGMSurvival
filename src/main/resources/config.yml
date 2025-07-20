@@ -1,0 +1,269 @@
+# GGMSurvival 멀티 서버 통합 플러그인 설정
+# 이 플러그인은 모든 서버에 설치할 수 있으며, 서버별로 다른 기능을 활성화할 수 있습니다.
+#
+# 🎯 모든 서버 공통: 직업 시스템 (탱커, 검사, 궁수 효과)
+# 🌲 야생 서버 전용: G 강화, 드래곤 보상, NPC 교환
+#
+# 포트별 자동 설정:
+# - 25565 (로비): 직업 시스템만
+# - 25566 (건축): 직업 시스템만
+# - 25567 (야생): 모든 기능
+# - 25568 (마을): 직업 시스템만
+
+# 데이터베이스 설정 (GGMCore와 공유)
+database:
+  host: "localhost"
+  port: 3306
+  database: "ggm_server"
+  username: "root"
+  password: "1224"
+
+# 직업 시스템 설정
+job_system:
+  enabled: true
+  force_job_selection: true          # 접속 시 직업 선택 강제
+  allow_job_change: false            # 직업 변경 허용 여부
+  job_selection_delay: 60            # 접속 후 직업 선택 알림 지연 (초)
+
+  # 직업별 효과 설정
+  tank:
+    health_bonus: 4.0                # 추가 체력 (하트 2개)
+    shield_heal_amount: 1.0          # 방패 사용 시 회복량
+    shield_cooldown: 3000            # 방패 회복 쿨다운 (밀리초)
+    damage_reduction: 0.1            # 받는 피해 감소 (10%)
+
+  warrior:
+    sword_damage_bonus: 0.2          # 검 공격력 증가 (20%)
+    critical_chance: 0.1             # 치명타 확률 (10%)
+    critical_multiplier: 1.5         # 치명타 배율
+    durability_save_chance: 0.15     # 내구도 소모 방지 확률 (15%)
+
+  archer:
+    bow_damage_bonus: 0.15           # 활 공격력 증가 (15%)
+    arrow_save_chance: 0.2           # 화살 소모 방지 확률 (20%)
+    leather_boots_speed: 1           # 가죽부츠 착용 시 속도 레벨
+    movement_speed_bonus: 0.1        # 이동속도 보너스
+
+# 강화 시스템 설정
+upgrade_system:
+  enabled: true
+  max_upgrade_level: 10              # 최대 강화 레벨
+
+  # 강화 비용 (레벨별)
+  costs:
+    1: 1000
+    2: 2000
+    3: 4000
+    4: 8000
+    5: 15000
+    6: 25000
+    7: 40000
+    8: 70000
+    9: 120000
+    10: 200000
+
+  # 성공 확률 (레벨별)
+  success_rates:
+    1: 95
+    2: 90
+    3: 85
+    4: 80
+    5: 70
+    6: 60
+    7: 50
+    8: 40
+    9: 30
+    10: 20
+
+  # 실패 시 강화 레벨 감소 시작점
+  downgrade_start_level: 5
+
+  # 강화별 능력 증가율
+  stat_bonus_per_level: 10           # 레벨당 능력 증가 (%)
+
+# 드래곤 보상 시스템
+dragon_reward:
+  enabled: true
+  base_reward: 100000                # 기본 보상 (100,000G)
+  min_reward: 10000                  # 최소 보상 (10,000G)
+  min_damage_threshold: 1000         # 최소 기여도
+  daily_limit: true                  # 일일 1회 제한
+
+  # 기여도 계산 설정
+  damage_calculation:
+    max_distance: 100                # 기여도 인정 최대 거리
+    distance_factor: 10              # 거리당 기여도 계수
+
+  # 보상 알림 설정
+  announce_to_server: true           # 서버 전체 공지
+  announcement_delay: 60             # 공지 지연 시간 (틱)
+
+# NPC 교환상 시스템
+npc_trade:
+  enabled: true
+
+  # 아이템별 판매 가격 (기본값, 추가 설정 가능)
+  item_prices:
+    # 광물류
+    COAL: 10
+    IRON_INGOT: 50
+    GOLD_INGOT: 100
+    DIAMOND: 500
+    EMERALD: 300
+    NETHERITE_INGOT: 2000
+
+    # 원석
+    COAL_ORE: 15
+    IRON_ORE: 75
+    GOLD_ORE: 150
+    DIAMOND_ORE: 750
+    EMERALD_ORE: 450
+    ANCIENT_DEBRIS: 3000
+
+    # 희귀 아이템
+    NETHER_STAR: 10000
+    DRAGON_EGG: 50000
+    ELYTRA: 25000
+    HEART_OF_THE_SEA: 5000
+
+    # 몹 드롭
+    ENDER_PEARL: 100
+    BLAZE_ROD: 50
+    GHAST_TEAR: 200
+    GUNPOWDER: 15
+
+  # NPC 설정
+  max_npcs_per_world: 10             # 월드당 최대 NPC 수
+  npc_protection: true               # NPC 보호 (무적)
+  npc_ai_disabled: true              # NPC AI 비활성화
+
+# 서버별 기능 설정 (모든 서버에 설치 가능)
+server_features:
+  # 서버 타입 자동 감지 (포트 기반)
+  auto_detect_server: true
+
+  # 수동 서버 타입 설정 (auto_detect_server가 false일 때만 사용)
+  server_type: "survival"           # lobby, build, survival, village
+
+  # 기능별 활성화 설정
+  features:
+    # 직업 시스템 (모든 서버에서 활성화)
+    job_system: true                # 직업 효과는 모든 서버에서 적용
+    job_selection: true             # 직업 선택 GUI (모든 서버에서 가능)
+
+    # 야생 서버 전용 기능들
+    upgrade_system: false           # G 강화 시스템 (야생에서만)
+    dragon_reward: false            # 드래곤 보상 (야생에서만)
+    npc_trading: false              # NPC 교환 (야생에서만)
+
+  # 서버별 자동 설정 (포트 기반)
+  server_configs:
+    25565: # 로비 서버
+      job_system: true
+      job_selection: true
+      upgrade_system: false
+      dragon_reward: false
+      npc_trading: false
+
+    25566: # 건축 서버
+      job_system: true
+      job_selection: true
+      upgrade_system: false
+      dragon_reward: false
+      npc_trading: false
+
+    25567: # 야생 서버
+      job_system: true
+      job_selection: true
+      upgrade_system: true
+      dragon_reward: true
+      npc_trading: true
+
+    25568: # 마을 서버
+      job_system: true
+      job_selection: true
+      upgrade_system: false
+      dragon_reward: false
+      npc_trading: false
+
+# 메시지 설정
+messages:
+  prefix: "§6[GGM] §f"
+
+  # 직업 관련 메시지 (모든 서버)
+  job_selection_required: "§e직업을 선택하여 특수 능력을 활용하세요!"
+  job_selection_reminder: "§c아직 직업을 선택하지 않으셨습니다! /job select 명령어를 사용하세요."
+  job_selected: "§a{job} 직업을 선택하셨습니다! 특수 능력을 활용해보세요."
+  job_already_selected: "§c이미 직업을 선택하셨습니다. 변경은 불가능합니다."
+  job_effects_active: "§a직업 효과가 모든 서버에서 적용됩니다!"
+
+  # 강화 관련 메시지 (야생 서버만)
+  upgrade_success: "§a✨ {level}강 강화 성공! ✨"
+  upgrade_failure: "§c💥 강화에 실패했습니다... ({rate}% 확률)"
+  upgrade_downgrade: "§c강화 레벨이 {level}강으로 하락했습니다!"
+  insufficient_money: "§c강화 비용이 부족합니다! (필요: {cost}G)"
+  max_upgrade_reached: "§c이미 최대 강화 레벨에 도달했습니다!"
+  upgrade_not_available: "§c강화 시스템은 야생 서버에서만 사용할 수 있습니다!"
+
+  # 드래곤 관련 메시지 (야생 서버만)
+  dragon_reward_received: "§d🐉 드래곤 처치 보상: {amount}G (기여도: {contribution}%)"
+  dragon_already_rewarded: "§c오늘 이미 드래곤 보상을 받으셨습니다!"
+  dragon_insufficient_damage: "§c드래곤 처치 기여도가 부족합니다."
+  dragon_not_available: "§c드래곤 보상은 야생 서버에서만 받을 수 있습니다!"
+
+  # NPC 관련 메시지 (야생 서버만)
+  npc_created: "§a교환 NPC '{name}'이 생성되었습니다!"
+  npc_not_found: "§c해당 위치에 NPC를 찾을 수 없습니다."
+  trade_success: "§a{item} {amount}개를 {price}G에 판매했습니다!"
+  trade_no_items: "§c판매할 아이템이 없습니다!"
+  trade_not_available: "§cNPC 교환은 야생 서버에서만 사용할 수 있습니다!"
+
+  # 서버별 안내 메시지
+  feature_not_available: "§c이 기능은 현재 서버에서 사용할 수 없습니다."
+  survival_server_only: "§c이 기능은 야생 서버 전용입니다!"
+  visit_survival_server: "§e야생 서버에서 더 많은 기능을 이용하세요!"
+
+# 멀티 서버 설치 안내
+# ================================
+# 이 플러그인을 모든 서버에 설치하면:
+#
+# 📋 로비 서버 (25565):
+#   - 직업 선택 및 직업 효과 적용
+#   - /job 명령어 사용 가능
+#
+# 🏗️ 건축 서버 (25566):
+#   - 직업 선택 및 직업 효과 적용
+#   - /job 명령어 사용 가능
+#
+# 🌲 야생 서버 (25567):
+#   - 모든 기능 사용 가능
+#   - 직업 시스템 + G 강화 + 드래곤 보상 + NPC 교환
+#
+# 🏘️ 마을 서버 (25568):
+#   - 직업 선택 및 직업 효과 적용
+#   - /job 명령어 사용 가능
+# ================================
+
+# 로그 설정
+logging:
+  job_selection: true                # 직업 선택 로그
+  upgrade_attempts: true             # 강화 시도 로그
+  dragon_rewards: true               # 드래곤 보상 로그
+  npc_trades: true                   # NPC 교환 로그
+  economy_transactions: true         # 경제 거래 로그
+
+# 성능 설정
+performance:
+  async_database: true               # 비동기 데이터베이스 처리
+  cache_player_data: true            # 플레이어 데이터 캐싱
+  cache_duration: 300000             # 캐시 지속 시간 (밀리초, 5분)
+  
+  # 업데이트 주기
+  job_effect_interval: 40            # 직업 효과 적용 주기 (틱)
+  save_interval: 6000                # 데이터 저장 주기 (틱, 5분)
+
+# 개발자 설정
+debug:
+  enabled: false                     # 디버그 모드
+  verbose_logging: false             # 상세 로그
+  test_mode: false                   # 테스트 모드 (더미 데이터 사용)

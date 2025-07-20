@@ -1,0 +1,104 @@
+name: GGMSurvival
+version: '1.0-SNAPSHOT'
+main: com.ggm.ggmsurvival.GGMSurvival
+api-version: 1.20
+authors: [ DotC ]
+description: GGM 멀티 서버 통합 플러그인 - 직업 시스템 및 야생 서버 전용 기능
+website: https://ggm.server.com
+depend: []
+softdepend: [GGMCore]
+
+commands:
+  job:
+    description: 직업 선택 및 관리
+    usage: /job [select|info|list]
+    aliases: [jobs, 직업]
+    permission: ggm.job
+
+  upgrade:
+    description: 아이템 강화 정보
+    usage: /upgrade [info|guide|rates|costs]
+    aliases: [강화, enhance]
+    permission: ggm.upgrade
+
+  npc:
+    description: NPC 교환상 관리 (OP 전용)
+    usage: /npc <create|remove|list> [이름]
+    permission: ggm.npc.admin
+
+  trade:
+    description: NPC와 아이템 교환
+    usage: /trade
+    aliases: [교환]
+    permission: ggm.trade
+
+  dragon:
+    description: 드래곤 처치 기록 확인
+    usage: /dragon [info|today|history]
+    aliases: [드래곤]
+    permission: ggm.dragon
+
+  survival:
+    description: 야생 서버 정보 및 관리
+    usage: /survival [info|reload|stats]
+    aliases: [야생, ggmsurvival]
+    permission: ggm.survival
+
+permissions:
+  # 기본 플레이어 권한
+  ggm.job:
+    description: 직업 시스템 사용
+    default: true
+
+  ggm.upgrade:
+    description: 강화 시스템 사용
+    default: true
+
+  ggm.trade:
+    description: NPC 교환 사용
+    default: true
+
+  ggm.dragon:
+    description: 드래곤 정보 확인
+    default: true
+
+  ggm.survival:
+    description: 야생 서버 기본 정보
+    default: true
+
+  # 관리자 권한
+  ggm.job.admin:
+    description: 직업 시스템 관리
+    default: op
+
+  ggm.upgrade.admin:
+    description: 강화 시스템 관리
+    default: op
+
+  ggm.npc.admin:
+    description: NPC 관리
+    default: op
+
+  ggm.dragon.admin:
+    description: 드래곤 시스템 관리
+    default: op
+
+  ggm.survival.admin:
+    description: 야생 서버 관리
+    default: op
+
+  # 전체 권한
+  ggm.*:
+    description: 모든 GGM 야생 권한
+    default: op
+    children:
+      ggm.job: true
+      ggm.upgrade: true
+      ggm.trade: true
+      ggm.dragon: true
+      ggm.survival: true
+      ggm.job.admin: true
+      ggm.upgrade.admin: true
+      ggm.npc.admin: true
+      ggm.dragon.admin: true
+      ggm.survival.admin: true
