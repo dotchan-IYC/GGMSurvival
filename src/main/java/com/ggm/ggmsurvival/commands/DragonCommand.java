@@ -82,10 +82,16 @@ public class DragonCommand implements CommandExecutor {
         player.sendMessage("§7• 팀플레이로 안전하게 처치하세요!");
         player.sendMessage("");
 
-        // 오늘 보상 상태 확인
-        dragonRewardManager.getTodayDragonInfo(player.getUniqueId()).thenAccept(info -> {
-            player.sendMessage("§e§l오늘의 현황:");
-            player.sendMessage("§7" + info);
+        // 오늘 보상 상태 확인 - 수정된 메소드명 사용
+        dragonRewardManager.getTodayRewardInfo(player.getUniqueId()).thenAccept(info -> {
+            if (info.hasReceived) {
+                player.sendMessage("§e§l오늘의 현황:");
+                player.sendMessage("§7이미 보상을 받았습니다 (기여도: " + String.format("%.1f", info.damageDealt) +
+                        ", 보상: " + formatMoney(info.rewardAmount) + "G)");
+            } else {
+                player.sendMessage("§e§l오늘의 현황:");
+                player.sendMessage("§7아직 드래곤을 처치하지 않았습니다.");
+            }
             player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         });
     }
@@ -95,8 +101,18 @@ public class DragonCommand implements CommandExecutor {
         player.sendMessage("§e§l오늘의 드래곤 처치 현황");
         player.sendMessage("");
 
-        dragonRewardManager.getTodayDragonInfo(player.getUniqueId()).thenAccept(info -> {
-            player.sendMessage(info);
+        // 수정된 메소드명 사용
+        dragonRewardManager.getTodayRewardInfo(player.getUniqueId()).thenAccept(info -> {
+            if (info.hasReceived) {
+                player.sendMessage("§a✓ 오늘 드래곤을 처치했습니다!");
+                player.sendMessage("§7기여도: §f" + String.format("%.1f", info.damageDealt));
+                player.sendMessage("§7보상: §6" + formatMoney(info.rewardAmount) + "G");
+                player.sendMessage("§7처치 시간: §f" + info.receivedAt.toString());
+            } else {
+                player.sendMessage("§c✗ 아직 오늘 드래곤을 처치하지 않았습니다.");
+                player.sendMessage("");
+                player.sendMessage("§7드래곤을 처치하여 보상을 받아보세요!");
+            }
             player.sendMessage("");
             player.sendMessage("§7자세한 정보: §e/dragon info");
             player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -114,5 +130,15 @@ public class DragonCommand implements CommandExecutor {
         player.sendMessage("§e§l중요:");
         player.sendMessage("§7드래곤에게 최소 §c50 피해§7를 입혀야 보상을 받을 수 있습니다!");
         player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    private String formatMoney(long amount) {
+        if (amount >= 1000000) {
+            return String.format("%.1fM", amount / 1000000.0);
+        } else if (amount >= 1000) {
+            return String.format("%.1fK", amount / 1000.0);
+        } else {
+            return String.valueOf(amount);
+        }
     }
 }

@@ -1,7 +1,8 @@
-# GGMSurvival 멀티 서버 통합 플러그인 설정
-# 이 플러그인은 모든 서버에 설치할 수 있으며, 서버별로 다른 기능을 활성화할 수 있습니다.
+# GGMSurvival 새로운 패치 설정 파일
+# 강화시스템: 검, 도끼, 활, 흉갑만 강화 가능
+# 직업레벨: 몬스터 처치로 성장하는 직업 시스템
 
-# 데이터베이스 설정 (GGMCore와 공유)
+# 데이터베이스 설정
 database:
   host: "localhost"
   port: 3306
@@ -9,239 +10,173 @@ database:
   username: "root"
   password: "1224"
 
-# 직업 시스템 설정
+# 새로운 직업레벨 시스템
 job_system:
   enabled: true
   force_job_selection: true          # 접속 시 직업 선택 강제
-  allow_job_change: false            # 직업 변경 허용 여부
+  allow_job_change: false            # 직업 변경 허용 여부 (NONE에서만 선택 가능)
   job_selection_delay: 60            # 접속 후 직업 선택 알림 지연 (초)
+  max_job_level: 10                  # 최대 직업 레벨
+  level5_special_effects: true       # 레벨 5 특수 효과 활성화
+
+  # 직업레벨 경험치 설정
+  experience:
+    # 레벨업에 필요한 경험치
+    requirements:
+      1: 100      # 1레벨: 100exp
+      2: 250      # 2레벨: 250exp
+      3: 500      # 3레벨: 500exp
+      4: 800      # 4레벨: 800exp
+      5: 1200     # 5레벨: 1200exp (특수 효과)
+      6: 1700     # 6레벨: 1700exp
+      7: 2300     # 7레벨: 2300exp
+      8: 3000     # 8레벨: 3000exp
+      9: 3800     # 9레벨: 3800exp
+      10: 4700    # 10레벨: 4700exp (최대)
+
+    # 몬스터별 경험치
+    monster_exp:
+      # 일반 몬스터
+      ZOMBIE: 10
+      SKELETON: 10
+      SPIDER: 8
+      CREEPER: 12
+      SLIME: 5
+
+      # 중간 몬스터
+      ENDERMAN: 25
+      WITCH: 20
+      PILLAGER: 15
+      VINDICATOR: 18
+
+      # 강한 몬스터
+      WITHER_SKELETON: 40
+      BLAZE: 30
+      GHAST: 35
+
+      # 보스 몬스터
+      ENDER_DRAGON: 1000
+      WITHER: 500
+      ELDER_GUARDIAN: 200
 
   # 직업별 효과 설정
-  tank:
-    health_bonus: 4.0                # 추가 체력 (하트 2개)
-    shield_heal_amount: 1.0          # 방패 사용 시 회복량
-    shield_cooldown: 3000            # 방패 회복 쿨다운 (밀리초)
-    damage_reduction: 0.1            # 받는 피해 감소 (10%)
+  jobs:
+    tank:
+      damage_bonus_per_level: 0.02     # 레벨당 데미지 보너스 (2%)
+      health_bonus_level5: 4.0         # 레벨 5 시 추가 체력 (하트 2개)
+      health_bonus_level10: 8.0        # 레벨 10 시 추가 체력 (하트 4개)
+      shield_heal_amount: 1.0          # 방패 방어 시 회복량
+      shield_cooldown: 3000            # 방패 회복 쿨다운 (밀리초)
 
-  warrior:
-    sword_damage_bonus: 0.2          # 검 공격력 증가 (20%)
-    critical_chance: 0.1             # 치명타 확률 (10%)
-    critical_multiplier: 1.5         # 치명타 배율
-    durability_save_chance: 0.15     # 내구도 소모 방지 확률 (15%)
+    warrior:
+      sword_damage_bonus: 0.05         # 레벨당 검 공격력 증가 (5%)
+      level5_attack_speed: true        # 레벨 5 시 공격속도 증가
+      level10_critical_chance: 10      # 레벨 10 시 크리티컬 확률 (10%)
+      critical_multiplier: 2.5         # 크리티컬 배율 (2.5배)
 
-  archer:
-    bow_damage_bonus: 0.15           # 활 공격력 증가 (15%)
-    arrow_save_chance: 0.2           # 화살 소모 방지 확률 (20%)
-    leather_boots_speed: 1           # 가죽부츠 착용 시 속도 레벨
-    movement_speed_bonus: 0.1        # 이동속도 보너스
+    archer:
+      bow_damage_bonus: 0.04           # 레벨당 활 공격력 증가 (4%)
+      level5_speed_bonus: true         # 레벨 5 시 이동속도 보너스 (가죽장화 착용 중)
+      level10_triple_shot_chance: 50   # 레벨 10 시 트리플 샷 확률 (50%)
+      leather_boots_speed: 20          # 가죽부츠 착용 중 속도 증가 (%)
+      arrow_save_chance: 0.2           # 화살 소모 방지 확률 (20%)
 
-# 강화 시스템 설정
+# 새로운 강화 시스템 (검, 도끼, 활, 흉갑만)
 upgrade_system:
   enabled: true
   max_upgrade_level: 10              # 최대 강화 레벨
 
-  # 강화 비용 (레벨별)
-  costs:
-    1: 1000
-    2: 2000
-    3: 4000
-    4: 8000
-    5: 15000
-    6: 25000
-    7: 40000
-    8: 70000
-    9: 120000
-    10: 200000
+  # 강화 가능한 아이템 (새 패치)
+  upgradeable_items:
+    swords: true                     # 검류 (모든 종류)
+    axes: true                       # 도끼류 (모든 종류)
+    bows: true                       # 활류 (활, 쇠뇌)
+    chestplates: true                # 흉갑류 (모든 종류)
+    # 다른 아이템들은 강화 불가능
+    other_weapons: false
+    other_armor: false
+    tools: false
 
-  # 성공 확률 (레벨별)
+  # 새로운 강화 효과
+  effects:
+    sword:
+      damage_per_level: 3            # 레벨당 위력 증가 (%)
+      max_level_effect: "FIRE"       # 10강 시 발화 효과
+
+    axe:
+      attack_speed_per_level: 2      # 레벨당 공격간격 감소 (%)
+      max_level_effect: "BLEEDING"   # 10강 시 출혈 효과
+
+    bow:
+      damage_per_level: 3            # 레벨당 위력 증가 (%)
+      max_level_effect: "FLAME"      # 10강 시 화염 효과
+
+    chestplate:
+      defense_per_level: 3           # 레벨당 방어력 증가 (%)
+      max_level_effect: "THORNS"     # 10강 시 가시 효과
+
+  # 강화 비용 (G)
+  costs:
+    1: 1000      # 1강: 1,000G
+    2: 2000      # 2강: 2,000G
+    3: 4000      # 3강: 4,000G
+    4: 8000      # 4강: 8,000G
+    5: 15000     # 5강: 15,000G
+    6: 25000     # 6강: 25,000G
+    7: 40000     # 7강: 40,000G
+    8: 70000     # 8강: 70,000G
+    9: 120000    # 9강: 120,000G
+    10: 200000   # 10강: 200,000G
+
+  # 성공 확률 (%)
   success_rates:
-    1: 95
-    2: 90
-    3: 85
-    4: 80
-    5: 70
-    6: 60
-    7: 50
-    8: 40
-    9: 30
-    10: 20
+    1: 95        # 1강: 95%
+    2: 90        # 2강: 90%
+    3: 85        # 3강: 85%
+    4: 80        # 4강: 80%
+    5: 70        # 5강: 70%
+    6: 60        # 6강: 60%
+    7: 50        # 7강: 50%
+    8: 40        # 8강: 40%
+    9: 30        # 9강: 30%
+    10: 20       # 10강: 20%
 
   # 실패 시 강화 레벨 감소 시작점
   downgrade_start_level: 5
 
-  # 강화별 능력 증가율
-  stat_bonus_per_level: 10           # 레벨당 능력 증가 (%)
+  # 강화 방법 설정
+  upgrade_methods:
+    enchant_table: true              # 인첸트 테이블 강화 허용
+    command_gui: true                # /upgrade gui 명령어 허용
+    direct_command: true             # /upgrade direct 명령어 허용
+    force_enchant_options: true      # 인첸트된 아이템도 테이블에 옵션 표시
 
-# 드래곤 보상 시스템 (최소 공적치 50으로 변경)
+# 드래곤 보상 시스템
 dragon_reward:
   enabled: true
   base_reward: 100000                # 기본 보상 (100,000G)
   min_reward: 10000                  # 최소 보상 (10,000G)
-  min_damage_threshold: 50           # 최소 기여도 (50으로 변경!)
-  daily_limit: true                  # 일일 1회 제한
+  min_damage_threshold: 50           # 최소 기여도
 
-  # 기여도 계산 설정
-  damage_calculation:
-    max_distance: 100                # 기여도 인정 최대 거리
-    distance_factor: 10              # 거리당 기여도 계수
-
-  # 보상 알림 설정
-  announce_to_server: true           # 서버 전체 공지
-  announcement_delay: 60             # 공지 지연 시간 (틱)
-
-# NPC 교환상 시스템 (테마별로 확장)
-npc_trade:
+# NPC 교환 시스템
+npc_system:
   enabled: true
-
-  # 테마별 상인 설정
-  trade_themes:
-    mining:
-      enabled: true
-      npc_name: "§6광물 상인"
-      description: "광물과 원석을 높은 가격에 구매합니다"
-
-    combat:
-      enabled: true
-      npc_name: "§c전투 상인"
-      description: "몬스터 드롭과 전투 아이템을 구매합니다"
-
-    farming:
-      enabled: true
-      npc_name: "§a농업 상인"
-      description: "농작물과 동물 재료를 구매합니다"
-
-    rare:
-      enabled: true
-      npc_name: "§5희귀 상인"
-      description: "매우 희귀한 아이템을 최고가에 구매합니다"
-
-    building:
-      enabled: true
-      npc_name: "§b건축 상인"
-      description: "건축 재료를 대량으로 구매합니다"
-
-    redstone:
-      enabled: true
-      npc_name: "§4레드스톤 상인"
-      description: "레드스톤과 기계 부품을 구매합니다"
-
-  # 기본 아이템별 판매 가격 (기존 설정 유지 + 확장)
-  item_prices:
-    # 광물류 (Mining Merchant)
-    COAL: 8
-    COAL_ORE: 15
-    DEEPSLATE_COAL_ORE: 18
-    IRON_INGOT: 40
-    IRON_ORE: 60
-    DEEPSLATE_IRON_ORE: 75
-    RAW_IRON: 45
-    GOLD_INGOT: 80
-    GOLD_ORE: 120
-    DEEPSLATE_GOLD_ORE: 140
-    RAW_GOLD: 90
-    DIAMOND: 400
-    DIAMOND_ORE: 600
-    DEEPSLATE_DIAMOND_ORE: 700
-    EMERALD: 250
-    EMERALD_ORE: 400
-    DEEPSLATE_EMERALD_ORE: 450
-    LAPIS_LAZULI: 15
-    LAPIS_ORE: 25
-    REDSTONE: 5
-    REDSTONE_ORE: 12
-    COPPER_INGOT: 20
-    RAW_COPPER: 18
-    NETHERITE_INGOT: 5000
-    NETHERITE_SCRAP: 1200
-    ANCIENT_DEBRIS: 3000
-
-    # 전투 아이템 (Combat Merchant)
-    GUNPOWDER: 12
-    BONE: 8
-    ROTTEN_FLESH: 3
-    STRING: 6
-    SPIDER_EYE: 15
-    ENDER_PEARL: 80
-    BLAZE_ROD: 40
-    BLAZE_POWDER: 20
-    GHAST_TEAR: 150
-    MAGMA_CREAM: 25
-    SLIME_BALL: 18
-    PRISMARINE_CRYSTALS: 30
-    PRISMARINE_SHARD: 20
-    SHULKER_SHELL: 500
-    PHANTOM_MEMBRANE: 100
-    WITHER_SKELETON_SKULL: 1000
-
-    # 농업 아이템 (Farming Merchant)
-    WHEAT: 5
-    WHEAT_SEEDS: 2
-    CARROT: 4
-    POTATO: 4
-    BEETROOT: 3
-    PUMPKIN: 8
-    MELON: 6
-    SUGAR_CANE: 7
-    BAMBOO: 3
-    SWEET_BERRIES: 6
-    LEATHER: 12
-    BEEF: 15
-    PORKCHOP: 15
-    CHICKEN: 12
-    EGG: 8
-    FEATHER: 6
-    MILK_BUCKET: 25
-
-    # 희귀 아이템 (Rare Merchant)
-    NETHER_STAR: 8000
-    DRAGON_EGG: 50000
-    ELYTRA: 20000
-    HEART_OF_THE_SEA: 3000
-    NAUTILUS_SHELL: 500
-    BEACON: 15000
-    TOTEM_OF_UNDYING: 5000
-    TRIDENT: 3000
-    ENCHANTED_GOLDEN_APPLE: 2000
-
-    # 건축 재료 (Building Merchant)
-    STONE: 2
-    COBBLESTONE: 1
-    GRANITE: 3
-    DIORITE: 3
-    ANDESITE: 3
-    SANDSTONE: 5
-    BRICKS: 8
-    NETHER_BRICKS: 10
-    QUARTZ: 25
-    QUARTZ_BLOCK: 100
-    OAK_LOG: 5
-    BIRCH_LOG: 5
-    SPRUCE_LOG: 5
-    JUNGLE_LOG: 6
-
-  # NPC 설정
-  max_npcs_per_world: 20             # 월드당 최대 NPC 수 (증가)
+  max_npcs: 50                       # 최대 NPC 수
   npc_protection: true               # NPC 보호 (무적)
   npc_ai_disabled: true              # NPC AI 비활성화
 
-# 서버별 기능 설정 (모든 서버에 설치 가능)
+# 서버별 기능 설정
 server_features:
-  # 서버 타입 자동 감지 (포트 기반)
-  auto_detect_server: true
-
-  # 수동 서버 타입 설정 (auto_detect_server가 false일 때만 사용)
-  server_type: "survival"           # lobby, build, survival, village
+  auto_detect_server: true           # 서버 타입 자동 감지 (포트 기반)
+  server_type: "survival"            # 수동 서버 타입 설정
 
   # 기능별 활성화 설정
   features:
-    # 직업 시스템 (모든 서버에서 활성화)
-    job_system: true                # 직업 효과는 모든 서버에서 적용
-    job_selection: true             # 직업 선택 GUI (모든 서버에서 가능)
-
-    # 야생 서버 전용 기능들
-    upgrade_system: false           # G 강화 시스템 (야생에서만)
-    dragon_reward: false            # 드래곤 보상 (야생에서만)
-    npc_trading: false              # NPC 교환 (야생에서만)
+    job_system: true                 # 직업 시스템 (모든 서버에서 활성화)
+    job_selection: true              # 직업 선택 GUI
+    upgrade_system: false            # 강화 시스템 (야생에서만)
+    dragon_reward: false             # 드래곤 보상 (야생에서만)
+    npc_trading: false               # NPC 교환 (야생에서만)
 
   # 서버별 자동 설정 (포트 기반)
   server_configs:
@@ -262,7 +197,7 @@ server_features:
     25567: # 야생 서버
       job_system: true
       job_selection: true
-      upgrade_system: true
+      upgrade_system: true           # 새로운 강화 시스템
       dragon_reward: true
       npc_trading: true
 
@@ -277,67 +212,36 @@ server_features:
 messages:
   prefix: "§6[GGM] §f"
 
-  # 직업 관련 메시지 (모든 서버)
+  # 직업 관련 메시지
   job_selection_required: "§e직업을 선택하여 특수 능력을 활용하세요!"
   job_selection_reminder: "§c아직 직업을 선택하지 않으셨습니다! /job select 명령어를 사용하세요."
-  job_selected: "§a{job} 직업을 선택하셨습니다! 특수 능력을 활용해보세요."
+  job_selected: "§a{job} 직업을 선택하셨습니다! 몬스터를 처치하여 레벨을 올리세요."
   job_already_selected: "§c이미 직업을 선택하셨습니다. 변경은 불가능합니다."
-  job_effects_active: "§a직업 효과가 모든 서버에서 적용됩니다!"
+  job_level_up: "§e⚡ 직업 레벨업! §f{old_level} → {new_level}"
+  job_exp_gain: "§a+ {exp} 직업 경험치 §7({monster})"
+  job_max_level: "§6★ 만렙 10 달성! 최강의 능력을 얻었습니다!"
 
-  # 강화 관련 메시지 (야생 서버만)
+  # 만렙 특수 효과 메시지
+  tank_max_level_effect: "§9💪 탱커 만렙: 흉갑 착용시 체력 +4칸 (28HP)"
+  warrior_critical_hit: "§c⚡ 크리티컬 발동! 2.5배 데미지!"
+  archer_triple_shot: "§a💫 트리플 샷! 화살 3발 발사!"
+
+  # 강화 관련 메시지
   upgrade_success: "§a✨ {level}강 강화 성공! ✨"
-  upgrade_failure: "§c💥 강화에 실패했습니다... ({rate}% 확률)"
+  upgrade_failure: "§c💥 {level}강 강화 실패!"
   upgrade_downgrade: "§c강화 레벨이 {level}강으로 하락했습니다!"
-  insufficient_money: "§c강화 비용이 부족합니다! (필요: {cost}G)"
-  max_upgrade_reached: "§c이미 최대 강화 레벨에 도달했습니다!"
-  upgrade_not_available: "§c강화 시스템은 야생 서버에서만 사용할 수 있습니다!"
+  upgrade_not_available: "§c이 아이템은 강화할 수 없습니다! §7(강화 가능: 검, 도끼, 활, 흉갑)"
+  upgrade_max_level: "§c이미 최대 강화 레벨(10강)에 도달했습니다!"
 
-  # 드래곤 관련 메시지 (야생 서버만) - 최소 공적치 변경 반영
-  dragon_reward_received: "§d🐉 드래곤 처치 보상: {amount}G (기여도: {contribution})"
-  dragon_already_rewarded: "§c오늘 이미 드래곤 보상을 받으셨습니다!"
-  dragon_insufficient_damage: "§c드래곤 처치 기여도가 부족합니다. (최소: 50)"
-  dragon_not_available: "§c드래곤 보상은 야생 서버에서만 받을 수 있습니다!"
+  # 효과 관련 메시지
+  tank_shield_heal: "§9방패 방어! §a+{amount} 체력 회복"
+  warrior_speed_boost: "§c검의 힘! §a공격속도 증가"
+  archer_speed_boost: "§a🏃 가죽장화 패시브: 이동속도 +20%"
+  archer_speed_removed: "§7가죽장화 패시브 효과 해제"
 
-  # NPC 관련 메시지 (야생 서버만) - 테마별 상인 추가
-  npc_created: "§a교환 NPC '{name}'이 생성되었습니다!"
-  npc_not_found: "§c해당 위치에 NPC를 찾을 수 없습니다."
-  trade_success: "§a{item} {amount}개를 {price}G에 판매했습니다!"
-  trade_no_items: "§c판매할 아이템이 없습니다!"
-  trade_not_available: "§cNPC 교환은 야생 서버에서만 사용할 수 있습니다!"
-
-  # 테마별 상인 안내 메시지
-  mining_merchant_info: "§6광물 상인§f: 모든 종류의 광물과 원석을 최고가에 구매합니다!"
-  combat_merchant_info: "§c전투 상인§f: 몬스터 드롭과 전투 관련 아이템을 구매합니다!"
-  farming_merchant_info: "§a농업 상인§f: 농작물과 동물 재료를 구매합니다!"
-  rare_merchant_info: "§5희귀 상인§f: 매우 희귀한 아이템을 놀라운 가격에 구매합니다!"
-  building_merchant_info: "§b건축 상인§f: 모든 건축 재료를 대량으로 구매합니다!"
-  redstone_merchant_info: "§4레드스톤 상인§f: 레드스톤과 기계 부품을 구매합니다!"
-
-  # 서버별 안내 메시지
-  feature_not_available: "§c이 기능은 현재 서버에서 사용할 수 없습니다."
-  survival_server_only: "§c이 기능은 야생 서버 전용입니다!"
-  visit_survival_server: "§e야생 서버에서 더 많은 기능을 이용하세요!"
-
-# 로그 설정
-logging:
-  job_selection: true                # 직업 선택 로그
-  upgrade_attempts: true             # 강화 시도 로그
-  dragon_rewards: true               # 드래곤 보상 로그
-  npc_trades: true                   # NPC 교환 로그
-  economy_transactions: true         # 경제 거래 로그
-
-# 성능 설정
-performance:
-  async_database: true               # 비동기 데이터베이스 처리
-  cache_player_data: true            # 플레이어 데이터 캐싱
-  cache_duration: 300000             # 캐시 지속 시간 (밀리초, 5분)
-  
-  # 업데이트 주기
-  job_effect_interval: 40            # 직업 효과 적용 주기 (틱)
-  save_interval: 6000                # 데이터 저장 주기 (틱, 5분)
-
-# 개발자 설정
+# 디버그 설정
 debug:
   enabled: false                     # 디버그 모드
-  verbose_logging: false             # 상세 로그
-  test_mode: false                   # 테스트 모드 (더미 데이터 사용)
+  log_job_events: true              # 직업 이벤트 로그
+  log_upgrade_events: true          # 강화 이벤트 로그
+  log_exp_gain: false               # 경험치 획득 로그

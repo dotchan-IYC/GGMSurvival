@@ -41,12 +41,12 @@ public class NPCCommand implements CommandExecutor {
         switch (subCommand) {
             case "create":
             case "생성":
-                if (args.length < 2) {
-                    player.sendMessage("§c사용법: /npc create <타입>");
+                if (args.length < 3) {
+                    player.sendMessage("§c사용법: /npc create <이름> <타입>");
                     player.sendMessage("§7타입: mining, combat, farming, rare, building, redstone");
                     return true;
                 }
-                createNPC(player, args[1]);
+                createNPC(player, args[1], args[2]);
                 break;
             case "list":
             case "목록":
@@ -64,7 +64,7 @@ public class NPCCommand implements CommandExecutor {
         return true;
     }
 
-    private void createNPC(Player player, String typeStr) {
+    private void createNPC(Player player, String npcName, String typeStr) {
         NPCTradeManager.TradeType tradeType;
 
         try {
@@ -99,7 +99,8 @@ public class NPCCommand implements CommandExecutor {
                     return;
             }
 
-            npcTradeManager.createTradeNPC(player, tradeType);
+            // 수정된 메소드 호출 - npcName 매개변수 추가
+            npcTradeManager.createTradeNPC(player, npcName, tradeType);
 
         } catch (Exception e) {
             player.sendMessage("§cNPC 생성 중 오류가 발생했습니다: " + e.getMessage());
@@ -118,7 +119,7 @@ public class NPCCommand implements CommandExecutor {
         player.sendMessage("§bbuilding §7- 건축 상인 (건축 재료)");
         player.sendMessage("§4redstone §7- 레드스톤 상인 (레드스톤 부품)");
         player.sendMessage("");
-        player.sendMessage("§7사용법: §e/npc create <타입>");
+        player.sendMessage("§7사용법: §e/npc create <이름> <타입>");
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
@@ -152,7 +153,7 @@ public class NPCCommand implements CommandExecutor {
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         player.sendMessage("§e§lNPC 관리 명령어");
         player.sendMessage("");
-        player.sendMessage("§7/npc create <타입> §f- NPC 생성");
+        player.sendMessage("§7/npc create <이름> <타입> §f- NPC 생성");
         player.sendMessage("§7/npc list §f- 사용 가능한 NPC 타입 목록");
         player.sendMessage("§7/npc info §f- NPC 시스템 정보");
         player.sendMessage("");
