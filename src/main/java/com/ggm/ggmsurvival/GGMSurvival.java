@@ -1,4 +1,4 @@
-// 수정된 GGMSurvival.java - 강화 시스템 활성화
+// 완전한 GGMSurvival.java - 개선된 직업 시스템과 강화 시스템
 package com.ggm.ggmsurvival;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -14,7 +14,7 @@ public class GGMSurvival extends JavaPlugin {
     private DatabaseManager databaseManager;
     private EconomyManager economyManager;
     private JobManager jobManager;
-    private EnchantUpgradeManager enchantUpgradeManager; // 활성화
+    private EnchantUpgradeManager enchantUpgradeManager;
     private DragonRewardManager dragonRewardManager;
     private NPCTradeManager npcTradeManager;
 
@@ -36,7 +36,14 @@ public class GGMSurvival extends JavaPlugin {
             registerListeners();
 
             getLogger().info("GGMSurvival 플러그인이 활성화되었습니다!");
-            getLogger().info("모든 기능이 로드되었습니다!");
+            getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            getLogger().info("§a✓ 직업 시스템: 직업이 없을 때만 변경 가능");
+            getLogger().info("§a✓ 강화 시스템: 인첸트된 아이템도 강화 가능");
+            getLogger().info("§a✓ GUI 강화: /upgrade gui 명령어 추가");
+            getLogger().info("§a✓ 즉시 강화: /upgrade direct 명령어 추가");
+            getLogger().info("§a✓ 검증 강화: 중복 직업 선택 방지");
+            getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            getLogger().info("모든 기능이 성공적으로 로드되었습니다!");
 
         } catch (Exception e) {
             getLogger().severe("플러그인 초기화 실패: " + e.getMessage());
@@ -66,40 +73,115 @@ public class GGMSurvival extends JavaPlugin {
 
             // 데이터베이스 매니저 (항상 필요)
             databaseManager = new DatabaseManager(this);
-            getLogger().info("데이터베이스 매니저 초기화 완료");
+            getLogger().info("✓ 데이터베이스 매니저 초기화 완료");
 
             // 경제 매니저 (항상 필요 - GGMCore 연동)
             economyManager = new EconomyManager(this);
-            getLogger().info("경제 매니저 초기화 완료");
+            getLogger().info("✓ 경제 매니저 초기화 완료");
 
             // 직업 시스템 매니저 (모든 서버에서 활성화)
             if (isFeatureEnabled("job_system")) {
                 jobManager = new JobManager(this);
-                getLogger().info("직업 시스템 매니저 초기화 완료 (모든 서버 적용)");
+                getLogger().info("✓ 직업 시스템 매니저 초기화 완료 (강화된 검증)");
             }
 
             // 야생 서버 전용 기능들
             if (isFeatureEnabled("upgrade_system")) {
-                enchantUpgradeManager = new EnchantUpgradeManager(this); // 활성화!
-                getLogger().info("강화 시스템 매니저 초기화 완료 (야생 서버 전용)");
+                enchantUpgradeManager = new EnchantUpgradeManager(this);
+                getLogger().info("✓ 강화 시스템 매니저 초기화 완료 (인첸트된 아이템 지원)");
             }
 
             if (isFeatureEnabled("dragon_reward")) {
                 dragonRewardManager = new DragonRewardManager(this);
-                getLogger().info("드래곤 보상 매니저 초기화 완료 (야생 서버 전용)");
+                getLogger().info("✓ 드래곤 보상 매니저 초기화 완료");
             }
 
             if (isFeatureEnabled("npc_trading")) {
                 npcTradeManager = new NPCTradeManager(this);
-                getLogger().info("NPC 교환 매니저 초기화 완료 (야생 서버 전용)");
+                getLogger().info("✓ NPC 교환 매니저 초기화 완료");
             }
 
-            // 현재 서버 설정 정보 출력
-            printServerConfiguration();
+        } catch (Exception e) {
+            getLogger().severe("매니저 초기화 중 오류: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    private void registerCommands() {
+        try {
+            // 직업 명령어 (개선된 버전)
+            if (jobManager != null) {
+                JobCommand jobCommand = new JobCommand(this);
+                getCommand("job").setExecutor(jobCommand);
+                getLogger().info("✓ 직업 명령어 등록 완료 (/job)");
+            }
+
+            // 강화 명령어 (GUI 및 직접 강화 포함)
+            if (enchantUpgradeManager != null) {
+                UpgradeCommand upgradeCommand = new UpgradeCommand(this);
+                getCommand("upgrade").setExecutor(upgradeCommand);
+                getLogger().info("✓ 강화 명령어 등록 완료 (/upgrade gui, /upgrade direct)");
+            }
+
+            // 드래곤 명령어
+            if (dragonRewardManager != null) {
+                DragonCommand dragonCommand = new DragonCommand(this);
+                getCommand("dragon").setExecutor(dragonCommand);
+                getLogger().info("✓ 드래곤 명령어 등록 완료 (/dragon)");
+            }
+
+            // NPC 명령어
+            if (npcTradeManager != null) {
+                NPCCommand npcCommand = new NPCCommand(this);
+                TradeCommand tradeCommand = new TradeCommand(this);
+                getCommand("npc").setExecutor(npcCommand);
+                getCommand("trade").setExecutor(tradeCommand);
+                getLogger().info("✓ NPC 명령어 등록 완료 (/npc, /trade)");
+            }
+
+            // 서버 정보 명령어
+            SurvivalCommand survivalCommand = new SurvivalCommand(this);
+            getCommand("survival").setExecutor(survivalCommand);
+            getLogger().info("✓ 서버 명령어 등록 완료 (/survival)");
 
         } catch (Exception e) {
-            getLogger().severe("매니저 초기화 중 오류 발생: " + e.getMessage());
-            e.printStackTrace();
+            getLogger().severe("명령어 등록 중 오류: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    private void registerListeners() {
+        try {
+            // 플레이어 기본 리스너
+            getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+            getLogger().info("✓ 플레이어 리스너 등록 완료");
+
+            // 직업 시스템 리스너 (JobManager에 포함)
+            if (jobManager != null) {
+                getServer().getPluginManager().registerEvents(jobManager, this);
+                getLogger().info("✓ 직업 시스템 리스너 등록 완료");
+            }
+
+            // 강화 시스템 리스너 (EnchantUpgradeManager에 포함)
+            if (enchantUpgradeManager != null) {
+                getServer().getPluginManager().registerEvents(enchantUpgradeManager, this);
+                getLogger().info("✓ 강화 시스템 리스너 등록 완료");
+            }
+
+            // 드래곤 보상 리스너
+            if (dragonRewardManager != null) {
+                getServer().getPluginManager().registerEvents(dragonRewardManager, this);
+                getLogger().info("✓ 드래곤 보상 리스너 등록 완료");
+            }
+
+            // NPC 교환 리스너
+            if (npcTradeManager != null) {
+                getServer().getPluginManager().registerEvents(npcTradeManager, this);
+                getLogger().info("✓ NPC 교환 리스너 등록 완료");
+            }
+
+        } catch (Exception e) {
+            getLogger().severe("리스너 등록 중 오류: " + e.getMessage());
             throw e;
         }
     }
@@ -108,128 +190,35 @@ public class GGMSurvival extends JavaPlugin {
      * 서버 기능 설정 로드
      */
     private void loadServerFeatures() {
-        boolean autoDetect = getConfig().getBoolean("server_features.auto_detect_server", true);
+        int port = getServer().getPort();
+        getLogger().info("서버 포트: " + port);
 
-        if (autoDetect) {
-            int port = getServer().getPort();
-            String configPath = "server_features.server_configs." + port;
-
-            if (getConfig().contains(configPath)) {
-                getLogger().info("포트 " + port + "를 기반으로 서버 설정을 자동 감지했습니다.");
-
-                // 해당 포트의 설정을 features에 복사
-                for (String feature : getConfig().getConfigurationSection(configPath).getKeys(false)) {
-                    boolean enabled = getConfig().getBoolean(configPath + "." + feature);
-                    getConfig().set("server_features.features." + feature, enabled);
-                }
-            } else {
-                getLogger().warning("포트 " + port + "에 대한 설정이 없습니다. 기본 설정을 사용합니다.");
-            }
+        // 포트 기반 자동 설정
+        String configKey = "server_features.server_configs." + port;
+        if (getConfig().contains(configKey)) {
+            getLogger().info("포트 기반 자동 설정 적용: " + port);
+        } else {
+            getLogger().info("기본 설정 사용");
         }
     }
 
     /**
-     * 기능이 활성화되어 있는지 확인
+     * 기능 활성화 여부 확인
      */
     public boolean isFeatureEnabled(String feature) {
+        int port = getServer().getPort();
+        String portConfigPath = "server_features.server_configs." + port + "." + feature;
+
+        // 포트별 설정이 있으면 사용
+        if (getConfig().contains(portConfigPath)) {
+            return getConfig().getBoolean(portConfigPath);
+        }
+
+        // 기본 설정 사용
         return getConfig().getBoolean("server_features.features." + feature, false);
     }
 
-    /**
-     * 현재 서버 설정 정보 출력
-     */
-    private void printServerConfiguration() {
-        getLogger().info("=== GGMSurvival 서버 설정 ===");
-        getLogger().info("서버 포트: " + getServer().getPort());
-        getLogger().info("직업 시스템: " + (isFeatureEnabled("job_system") ? "활성화" : "비활성화"));
-        getLogger().info("직업 선택: " + (isFeatureEnabled("job_selection") ? "활성화" : "비활성화"));
-        getLogger().info("강화 시스템: " + (isFeatureEnabled("upgrade_system") ? "활성화 (야생 전용)" : "비활성화"));
-        getLogger().info("드래곤 보상: " + (isFeatureEnabled("dragon_reward") ? "활성화 (야생 전용)" : "비활성화"));
-        getLogger().info("NPC 교환: " + (isFeatureEnabled("npc_trading") ? "활성화 (야생 전용)" : "비활성화"));
-        getLogger().info("========================");
-    }
-
-    private void registerCommands() {
-        try {
-            // 직업 관련 명령어 (모든 서버)
-            if (isFeatureEnabled("job_system")) {
-                safeRegisterCommand("job", new JobCommand(this));
-                safeRegisterCommand("jobs", new JobCommand(this));
-            }
-
-            // 야생 서버 전용 명령어들
-            if (isFeatureEnabled("upgrade_system")) {
-                safeRegisterCommand("upgrade", new UpgradeCommand(this)); // 활성화!
-                safeRegisterCommand("강화", new UpgradeCommand(this));
-            }
-
-            if (isFeatureEnabled("npc_trading")) {
-                safeRegisterCommand("npc", new NPCCommand(this));
-                safeRegisterCommand("trade", new TradeCommand(this));
-            }
-
-            if (isFeatureEnabled("dragon_reward")) {
-                safeRegisterCommand("dragon", new DragonCommand(this));
-            }
-
-            // 기본 명령어 (모든 서버)
-            safeRegisterCommand("survival", new SurvivalCommand(this));
-
-            getLogger().info("명령어 등록 완료 (활성화된 기능에 따라)");
-
-        } catch (Exception e) {
-            getLogger().warning("명령어 등록 중 오류: " + e.getMessage());
-        }
-    }
-
-    private void safeRegisterCommand(String commandName, Object executor) {
-        try {
-            if (getCommand(commandName) != null) {
-                getCommand(commandName).setExecutor((org.bukkit.command.CommandExecutor) executor);
-                getLogger().info(commandName + " 명령어 등록 완료");
-            } else {
-                getLogger().warning(commandName + " 명령어 등록 실패 - plugin.yml 확인 필요");
-            }
-        } catch (Exception e) {
-            getLogger().warning(commandName + " 명령어 등록 중 오류: " + e.getMessage());
-        }
-    }
-
-    private void registerListeners() {
-        try {
-            // 플레이어 관련 리스너 (모든 서버)
-            getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
-
-            // 직업 시스템 리스너 (모든 서버)
-            if (jobManager != null) {
-                getServer().getPluginManager().registerEvents(jobManager, this);
-                getLogger().info("직업 시스템 리스너 등록 완료 (모든 서버)");
-            }
-
-            // 야생 서버 전용 리스너들
-            if (enchantUpgradeManager != null) {
-                getServer().getPluginManager().registerEvents(enchantUpgradeManager, this); // 활성화!
-                getLogger().info("강화 시스템 리스너 등록 완료 (야생 전용)");
-            }
-
-            if (dragonRewardManager != null) {
-                getServer().getPluginManager().registerEvents(dragonRewardManager, this);
-                getLogger().info("드래곤 보상 리스너 등록 완료 (야생 전용)");
-            }
-
-            if (npcTradeManager != null) {
-                getServer().getPluginManager().registerEvents(npcTradeManager, this);
-                getLogger().info("NPC 교환 리스너 등록 완료 (야생 전용)");
-            }
-
-            getLogger().info("이벤트 리스너 등록 완료 (활성화된 기능에 따라)");
-
-        } catch (Exception e) {
-            getLogger().warning("리스너 등록 중 오류: " + e.getMessage());
-        }
-    }
-
-    // Getter 메소드들
+    // Getter 메서드들
     public static GGMSurvival getInstance() {
         return instance;
     }
@@ -247,7 +236,7 @@ public class GGMSurvival extends JavaPlugin {
     }
 
     public EnchantUpgradeManager getEnchantUpgradeManager() {
-        return enchantUpgradeManager; // 활성화!
+        return enchantUpgradeManager;
     }
 
     public DragonRewardManager getDragonRewardManager() {
@@ -256,5 +245,32 @@ public class GGMSurvival extends JavaPlugin {
 
     public NPCTradeManager getNPCTradeManager() {
         return npcTradeManager;
+    }
+
+    /**
+     * 플러그인 리로드
+     */
+    public void reloadPlugin() {
+        try {
+            reloadConfig();
+            getLogger().info("설정 파일이 리로드되었습니다.");
+        } catch (Exception e) {
+            getLogger().severe("플러그인 리로드 중 오류: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 시스템 상태 확인
+     */
+    public void checkSystemStatus() {
+        getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        getLogger().info("GGMSurvival 시스템 상태:");
+        getLogger().info("데이터베이스: " + (databaseManager != null ? "§a정상" : "§c비활성"));
+        getLogger().info("경제 시스템: " + (economyManager != null ? "§a정상" : "§c비활성"));
+        getLogger().info("직업 시스템: " + (jobManager != null ? "§a정상" : "§c비활성"));
+        getLogger().info("강화 시스템: " + (enchantUpgradeManager != null ? "§a정상" : "§c비활성"));
+        getLogger().info("드래곤 보상: " + (dragonRewardManager != null ? "§a정상" : "§c비활성"));
+        getLogger().info("NPC 교환: " + (npcTradeManager != null ? "§a정상" : "§c비활성"));
+        getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 }

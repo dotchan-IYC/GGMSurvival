@@ -3,21 +3,21 @@ version: '1.0-SNAPSHOT'
 main: com.ggm.ggmsurvival.GGMSurvival
 api-version: 1.20
 authors: [ DotC ]
-description: GGM 멀티 서버 통합 플러그인 - 직업 시스템 및 야생 서버 전용 기능
+description: GGM 멀티 서버 통합 플러그인 - 직업 시스템 및 야생 서버 전용 기능 (개선된 버전)
 website: https://ggm.server.com
 depend: []
 softdepend: [GGMCore]
 
 commands:
   job:
-    description: 직업 선택 및 관리
-    usage: /job [select|info|list]
+    description: 직업 선택 및 관리 (개선된 검증 시스템)
+    usage: /job [select|info|list|reset]
     aliases: [jobs, 직업]
     permission: ggm.job
 
   upgrade:
-    description: 아이템 강화 시스템
-    usage: /upgrade [info|guide|rates]
+    description: 아이템 강화 시스템 (인첸트된 아이템도 강화 가능)
+    usage: /upgrade [info|guide|rates|gui|direct]
     aliases: [강화, enhance]
     permission: ggm.upgrade
 
@@ -68,7 +68,7 @@ permissions:
 
   # 관리자 권한
   ggm.job.admin:
-    description: 직업 시스템 관리
+    description: 직업 시스템 관리 (직업 초기화 등)
     default: op
 
   ggm.upgrade.admin:

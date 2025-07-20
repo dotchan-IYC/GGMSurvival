@@ -9,12 +9,27 @@ database:
   username: "root"
   password: "1224"
 
-# 직업 시스템 설정
+# 직업 시스템 설정 (개선된 버전)
 job_system:
   enabled: true
   force_job_selection: true          # 접속 시 직업 선택 강제
-  allow_job_change: false            # 직업 변경 허용 여부
+  allow_job_change: false            # 직업 변경 허용 여부 (NONE에서만 선택 가능)
   job_selection_delay: 60            # 접속 후 직업 선택 알림 지연 (초)
+
+  # 직업 변경 정책 (새로 추가)
+  job_change_policy:
+    allow_change_from_none: true     # 직업이 없을 때(NONE) 선택 허용
+    allow_change_from_job: false     # 이미 직업이 있을 때 변경 허용 (false 고정)
+    admin_can_reset: true            # 관리자 직업 초기화 허용
+    reset_command_enabled: true      # /job reset 명령어 활성화
+    confirmation_delay: 5            # 직업 선택 최종 확인 지연 시간 (초)
+
+  # 직업 선택 GUI 설정
+  gui:
+    title: "§6§l직업 선택"
+    show_warning_item: true          # 경고 아이템 표시
+    require_confirmation: true       # 최종 확인 단계 필요
+    auto_select_delay: 5             # 자동 선택 지연 시간 (초)
 
   # 직업별 효과 설정
   tank:
@@ -35,36 +50,50 @@ job_system:
     leather_boots_speed: 1           # 가죽부츠 착용 시 속도 레벨
     movement_speed_bonus: 0.1        # 이동속도 보너스
 
-# 강화 시스템 설정
+# 강화 시스템 설정 (개선된 버전)
 upgrade_system:
   enabled: true
   max_upgrade_level: 10              # 최대 강화 레벨
 
+  # 강화 방법 설정 (새로 추가)
+  upgrade_methods:
+    enchant_table: true              # 인첸트 테이블 강화 허용
+    command_gui: true                # /upgrade gui 명령어 허용
+    direct_command: true             # /upgrade direct 명령어 허용
+    force_enchant_options: true      # 인첸트된 아이템도 테이블에 옵션 표시
+
+  # 인첸트 테이블 강화 설정
+  enchant_table_upgrade:
+    show_fake_enchants: true         # 가짜 인첸트 옵션 표시 (강화용)
+    cancel_real_enchants: true       # 실제 인첸트는 취소하고 강화만 적용
+    close_table_after_upgrade: true  # 강화 후 테이블 자동 닫기
+    exp_cost_display: true           # 경험치 비용 표시 (실제로는 G 사용)
+
   # 강화 비용 (레벨별)
   costs:
-    1: 1000
-    2: 2000
-    3: 4000
-    4: 8000
-    5: 15000
-    6: 25000
-    7: 40000
-    8: 70000
-    9: 120000
-    10: 200000
+    1: 1000      # 1강: 1,000G
+    2: 2000      # 2강: 2,000G
+    3: 4000      # 3강: 4,000G
+    4: 8000      # 4강: 8,000G
+    5: 15000     # 5강: 15,000G
+    6: 25000     # 6강: 25,000G
+    7: 40000     # 7강: 40,000G
+    8: 70000     # 8강: 70,000G
+    9: 120000    # 9강: 120,000G
+    10: 200000   # 10강: 200,000G
 
   # 성공 확률 (레벨별)
   success_rates:
-    1: 95
-    2: 90
-    3: 85
-    4: 80
-    5: 70
-    6: 60
-    7: 50
-    8: 40
-    9: 30
-    10: 20
+    1: 95        # 1강: 95%
+    2: 90        # 2강: 90%
+    3: 85        # 3강: 85%
+    4: 80        # 4강: 80%
+    5: 70        # 5강: 70%
+    6: 60        # 6강: 60%
+    7: 50        # 7강: 50%
+    8: 40        # 8강: 40%
+    9: 30        # 9강: 30%
+    10: 20       # 10강: 20%
 
   # 실패 시 강화 레벨 감소 시작점
   downgrade_start_level: 5
@@ -72,155 +101,31 @@ upgrade_system:
   # 강화별 능력 증가율
   stat_bonus_per_level: 10           # 레벨당 능력 증가 (%)
 
+  # 강화 가능한 아이템 타입
+  upgradeable_items:
+    weapons: true                    # 무기류 (검, 활, 삼지창 등)
+    tools: true                      # 도구류 (곡괭이, 도끼, 삽 등)
+    armor: true                      # 방어구류 (투구, 흉갑, 각반, 부츠)
+    shields: true                    # 방패
+
+  # 강화 효과 설정
+  effects:
+    apply_enchantments: true         # 강화 시 자동 인첸트 적용
+    update_display_name: true        # 아이템 이름에 강화 표시
+    add_lore: true                   # 로어에 강화 정보 추가
+    visual_effects: true             # 강화 시 파티클/사운드 효과
+
 # 드래곤 보상 시스템 (최소 공적치 50으로 변경)
 dragon_reward:
   enabled: true
   base_reward: 100000                # 기본 보상 (100,000G)
   min_reward: 10000                  # 최소 보상 (10,000G)
   min_damage_threshold: 50           # 최소 기여도 (50으로 변경!)
-  daily_limit: true                  # 일일 1회 제한
 
-  # 기여도 계산 설정
-  damage_calculation:
-    max_distance: 100                # 기여도 인정 최대 거리
-    distance_factor: 10              # 거리당 기여도 계수
-
-  # 보상 알림 설정
-  announce_to_server: true           # 서버 전체 공지
-  announcement_delay: 60             # 공지 지연 시간 (틱)
-
-# NPC 교환상 시스템 (테마별로 확장)
-npc_trade:
+# NPC 교환 시스템 설정
+npc_system:
   enabled: true
-
-  # 테마별 상인 설정
-  trade_themes:
-    mining:
-      enabled: true
-      npc_name: "§6광물 상인"
-      description: "광물과 원석을 높은 가격에 구매합니다"
-
-    combat:
-      enabled: true
-      npc_name: "§c전투 상인"
-      description: "몬스터 드롭과 전투 아이템을 구매합니다"
-
-    farming:
-      enabled: true
-      npc_name: "§a농업 상인"
-      description: "농작물과 동물 재료를 구매합니다"
-
-    rare:
-      enabled: true
-      npc_name: "§5희귀 상인"
-      description: "매우 희귀한 아이템을 최고가에 구매합니다"
-
-    building:
-      enabled: true
-      npc_name: "§b건축 상인"
-      description: "건축 재료를 대량으로 구매합니다"
-
-    redstone:
-      enabled: true
-      npc_name: "§4레드스톤 상인"
-      description: "레드스톤과 기계 부품을 구매합니다"
-
-  # 기본 아이템별 판매 가격 (기존 설정 유지 + 확장)
-  item_prices:
-    # 광물류 (Mining Merchant)
-    COAL: 8
-    COAL_ORE: 15
-    DEEPSLATE_COAL_ORE: 18
-    IRON_INGOT: 40
-    IRON_ORE: 60
-    DEEPSLATE_IRON_ORE: 75
-    RAW_IRON: 45
-    GOLD_INGOT: 80
-    GOLD_ORE: 120
-    DEEPSLATE_GOLD_ORE: 140
-    RAW_GOLD: 90
-    DIAMOND: 400
-    DIAMOND_ORE: 600
-    DEEPSLATE_DIAMOND_ORE: 700
-    EMERALD: 250
-    EMERALD_ORE: 400
-    DEEPSLATE_EMERALD_ORE: 450
-    LAPIS_LAZULI: 15
-    LAPIS_ORE: 25
-    REDSTONE: 5
-    REDSTONE_ORE: 12
-    COPPER_INGOT: 20
-    RAW_COPPER: 18
-    NETHERITE_INGOT: 5000
-    NETHERITE_SCRAP: 1200
-    ANCIENT_DEBRIS: 3000
-
-    # 전투 아이템 (Combat Merchant)
-    GUNPOWDER: 12
-    BONE: 8
-    ROTTEN_FLESH: 3
-    STRING: 6
-    SPIDER_EYE: 15
-    ENDER_PEARL: 80
-    BLAZE_ROD: 40
-    BLAZE_POWDER: 20
-    GHAST_TEAR: 150
-    MAGMA_CREAM: 25
-    SLIME_BALL: 18
-    PRISMARINE_CRYSTALS: 30
-    PRISMARINE_SHARD: 20
-    SHULKER_SHELL: 500
-    PHANTOM_MEMBRANE: 100
-    WITHER_SKELETON_SKULL: 1000
-
-    # 농업 아이템 (Farming Merchant)
-    WHEAT: 5
-    WHEAT_SEEDS: 2
-    CARROT: 4
-    POTATO: 4
-    BEETROOT: 3
-    PUMPKIN: 8
-    MELON: 6
-    SUGAR_CANE: 7
-    BAMBOO: 3
-    SWEET_BERRIES: 6
-    LEATHER: 12
-    BEEF: 15
-    PORKCHOP: 15
-    CHICKEN: 12
-    EGG: 8
-    FEATHER: 6
-    MILK_BUCKET: 25
-
-    # 희귀 아이템 (Rare Merchant)
-    NETHER_STAR: 8000
-    DRAGON_EGG: 50000
-    ELYTRA: 20000
-    HEART_OF_THE_SEA: 3000
-    NAUTILUS_SHELL: 500
-    BEACON: 15000
-    TOTEM_OF_UNDYING: 5000
-    TRIDENT: 3000
-    ENCHANTED_GOLDEN_APPLE: 2000
-
-    # 건축 재료 (Building Merchant)
-    STONE: 2
-    COBBLESTONE: 1
-    GRANITE: 3
-    DIORITE: 3
-    ANDESITE: 3
-    SANDSTONE: 5
-    BRICKS: 8
-    NETHER_BRICKS: 10
-    QUARTZ: 25
-    QUARTZ_BLOCK: 100
-    OAK_LOG: 5
-    BIRCH_LOG: 5
-    SPRUCE_LOG: 5
-    JUNGLE_LOG: 6
-
-  # NPC 설정
-  max_npcs_per_world: 20             # 월드당 최대 NPC 수 (증가)
+  max_npcs: 50                       # 최대 NPC 수
   npc_protection: true               # NPC 보호 (무적)
   npc_ai_disabled: true              # NPC AI 비활성화
 
@@ -277,20 +182,55 @@ server_features:
 messages:
   prefix: "§6[GGM] §f"
 
-  # 직업 관련 메시지 (모든 서버)
+  # 직업 선택 관련 메시지
   job_selection_required: "§e직업을 선택하여 특수 능력을 활용하세요!"
   job_selection_reminder: "§c아직 직업을 선택하지 않으셨습니다! /job select 명령어를 사용하세요."
   job_selected: "§a{job} 직업을 선택하셨습니다! 특수 능력을 활용해보세요."
   job_already_selected: "§c이미 직업을 선택하셨습니다. 변경은 불가능합니다."
   job_effects_active: "§a직업 효과가 모든 서버에서 적용됩니다!"
 
-  # 강화 관련 메시지 (야생 서버만)
+  # 직업 변경 관련 메시지 (새로 추가)
+  job_change_denied: "§c직업이 이미 있어 변경할 수 없습니다. 관리자에게 문의하세요."
+  job_change_allowed: "§a직업이 없어 선택이 가능합니다!"
+  job_change_confirmation: "§e정말로 {job} 직업을 선택하시겠습니까? (변경 불가능)"
+  job_reset_success: "§a{player}의 직업을 초기화했습니다."
+  job_reset_failed: "§c직업 초기화에 실패했습니다."
+  job_reset_notification: "§e관리자에 의해 직업이 초기화되었습니다. 다시 선택할 수 있습니다."
+
+  # 강화 관련 메시지 (새로 추가)
   upgrade_success: "§a✨ {level}강 강화 성공! ✨"
   upgrade_failure: "§c💥 강화에 실패했습니다... ({rate}% 확률)"
   upgrade_downgrade: "§c강화 레벨이 {level}강으로 하락했습니다!"
   insufficient_money: "§c강화 비용이 부족합니다! (필요: {cost}G)"
   max_upgrade_reached: "§c이미 최대 강화 레벨에 도달했습니다!"
   upgrade_not_available: "§c강화 시스템은 야생 서버에서만 사용할 수 있습니다!"
+
+  # 새로운 강화 방법 관련 메시지
+  upgrade_gui_opened: "§a강화 GUI가 열렸습니다!"
+  upgrade_gui_closed: "§7강화를 취소했습니다."
+  direct_upgrade_started: "§e{level}강 강화를 시도합니다..."
+  enchanted_item_upgrade_info: "§e(인첸트된 아이템도 강화 가능합니다!)"
+  multiple_upgrade_methods: "§a여러 강화 방법을 사용할 수 있습니다: 인첸트 테이블, GUI, 명령어"
+
+  # 강화 방법 안내 메시지
+  upgrade_methods_guide: |
+    §6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    §e§l⚡ 강화 방법 안내
+    
+    §a1. 인첸트 테이블 사용:
+    §7• 기존과 동일한 방식
+    §7• 인첸트된 아이템도 강화 가능!
+    
+    §a2. 강화 GUI 사용:
+    §7• /upgrade gui 명령어
+    §7• 직관적인 인터페이스
+    
+    §a3. 즉시 강화:
+    §7• /upgrade direct 명령어
+    §7• 빠른 강화 가능
+    
+    §6모든 방법이 동일한 결과를 제공합니다!
+    §6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   # 드래곤 관련 메시지 (야생 서버만) - 최소 공적치 변경 반영
   dragon_reward_received: "§d🐉 드래곤 처치 보상: {amount}G (기여도: {contribution})"
@@ -313,31 +253,16 @@ messages:
   building_merchant_info: "§b건축 상인§f: 모든 건축 재료를 대량으로 구매합니다!"
   redstone_merchant_info: "§4레드스톤 상인§f: 레드스톤과 기계 부품을 구매합니다!"
 
-  # 서버별 안내 메시지
-  feature_not_available: "§c이 기능은 현재 서버에서 사용할 수 없습니다."
-  survival_server_only: "§c이 기능은 야생 서버 전용입니다!"
-  visit_survival_server: "§e야생 서버에서 더 많은 기능을 이용하세요!"
-
-# 로그 설정
-logging:
-  job_selection: true                # 직업 선택 로그
-  upgrade_attempts: true             # 강화 시도 로그
-  dragon_rewards: true               # 드래곤 보상 로그
-  npc_trades: true                   # NPC 교환 로그
-  economy_transactions: true         # 경제 거래 로그
-
-# 성능 설정
-performance:
-  async_database: true               # 비동기 데이터베이스 처리
-  cache_player_data: true            # 플레이어 데이터 캐싱
-  cache_duration: 300000             # 캐시 지속 시간 (밀리초, 5분)
-  
-  # 업데이트 주기
-  job_effect_interval: 40            # 직업 효과 적용 주기 (틱)
-  save_interval: 6000                # 데이터 저장 주기 (틱, 5분)
-
-# 개발자 설정
+# 디버그 및 로깅 설정
 debug:
   enabled: false                     # 디버그 모드
-  verbose_logging: false             # 상세 로그
-  test_mode: false                   # 테스트 모드 (더미 데이터 사용)
+  log_job_effects: false             # 직업 효과 로깅
+  log_upgrade_attempts: true         # 강화 시도 로깅
+  log_database_queries: false        # DB 쿼리 로깅
+
+# 성능 최적화 설정
+performance:
+  job_effect_interval: 40            # 직업 효과 적용 간격 (틱)
+  cache_job_data: true               # 직업 데이터 캐싱
+  async_database_operations: true    # 비동기 DB 작업
+  max_concurrent_upgrades: 10        # 동시 강화 최대 수

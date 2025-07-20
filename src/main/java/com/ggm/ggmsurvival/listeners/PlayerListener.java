@@ -1,3 +1,4 @@
+// 수정된 PlayerListener.java - 메서드 시그니처 문제 해결
 package com.ggm.ggmsurvival.listeners;
 
 import com.ggm.ggmsurvival.GGMSurvival;
@@ -5,131 +6,159 @@ import com.ggm.ggmsurvival.managers.JobManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.scheduler.BukkitRunnable;
 
 public class PlayerListener implements Listener {
 
     private final GGMSurvival plugin;
-    private final JobManager jobManager;
 
     public PlayerListener(GGMSurvival plugin) {
         this.plugin = plugin;
-        this.jobManager = plugin.getJobManager();
-    }
-
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-
-        // JobManager가 있는 경우 직업 캐시 로드
-        if (jobManager != null) {
-            jobManager.onPlayerJoin(player);
-
-            // 직업 선택 강제 여부 확인
-            boolean forceJobSelection = plugin.getConfig().getBoolean("job_system.force_job_selection", true);
-            if (forceJobSelection) {
-                int delay = plugin.getConfig().getInt("job_system.job_selection_delay", 60);
-
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (player.isOnline()) {
-                        jobManager.getPlayerJob(player.getUniqueId()).thenAccept(jobType -> {
-                            if (jobType == JobManager.JobType.NONE) {
-                                Bukkit.getScheduler().runTask(plugin, () -> {
-                                    player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                                    player.sendMessage("§e§l⚠ 직업을 선택해주세요!");
-                                    player.sendMessage("§7직업을 선택하지 않으면 특별한 능력을 사용할 수 없습니다.");
-                                    player.sendMessage("§a명령어: §f/job select <직업명>");
-                                    player.sendMessage("§a또는: §f/job gui");
-                                    player.sendMessage("§7사용 가능한 직업: §f탱커, 검사, 궁수");
-                                    player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-                                    // 선택적으로 GUI 자동 열기
-                                    boolean autoOpenGUI = plugin.getConfig().getBoolean("job_system.auto_open_gui", false);
-                                    if (autoOpenGUI) {
-                                        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                                            if (player.isOnline()) {
-                                                jobManager.openJobSelectionGUI(player);
-                                            }
-                                        }, 40L); // 2초 후 GUI 열기
-                                    }
-                                });
-                            }
-                        });
-                    }
-                }, delay * 20L);
-            }
-        }
-
-        // 환영 메시지 (설정 가능)
-        boolean welcomeMessage = plugin.getConfig().getBoolean("messages.welcome_enabled", true);
-        if (welcomeMessage) {
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (player.isOnline()) {
-                    player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    player.sendMessage("§6§l🌟 GGM 야생 서버에 오신 것을 환영합니다!");
-                    player.sendMessage("");
-                    player.sendMessage("§e💼 직업 시스템: §f/job gui");
-                    player.sendMessage("§e⚡ 강화 시스템: §f인챈트 테이블 사용");
-                    player.sendMessage("§e🐉 드래곤 토벌: §f보상 시스템 활성화");
-                    player.sendMessage("§e🏪 NPC 교환: §f/trade 명령어");
-                    player.sendMessage("");
-                    player.sendMessage("§7즐거운 게임 되세요!");
-                    player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                }
-            }, 80L); // 4초 후 환영 메시지
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
-
-        // JobManager가 있는 경우 캐시 정리
-        if (jobManager != null) {
-            jobManager.onPlayerQuit(player);
-        }
-
-        // 퇴장 로그
-        plugin.getLogger().info(String.format("[플레이어 퇴장] %s님이 야생 서버에서 퇴장했습니다.", player.getName()));
     }
 
     /**
-     * 첫 접속 플레이어 감지 및 특별 처리
+     * 플레이어 접속 이벤트
      */
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onFirstJoin(PlayerJoinEvent event) {
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        // 첫 접속 감지
-        if (!player.hasPlayedBefore()) {
-            plugin.getLogger().info(String.format("[신규 플레이어] %s님이 야생 서버에 첫 접속했습니다!", player.getName()));
-
-            // 신규 플레이어 혜택 (설정으로 제어)
-            boolean newPlayerBonus = plugin.getConfig().getBoolean("new_player.bonus_enabled", true);
-            if (newPlayerBonus) {
-                long bonusAmount = plugin.getConfig().getLong("new_player.bonus_amount", 5000L);
-
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (player.isOnline() && plugin.getEconomyManager() != null) {
-                        plugin.getEconomyManager().addMoney(player.getUniqueId(), player.getName(), bonusAmount)
-                                .thenAccept(success -> {
-                                    if (success) {
-                                        Bukkit.getScheduler().runTask(plugin, () -> {
-                                            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                                            player.sendMessage("§6§l🎁 신규 플레이어 혜택!");
-                                            player.sendMessage("§a+" + plugin.getEconomyManager().formatMoney(bonusAmount) + "G가 지급되었습니다!");
-                                            player.sendMessage("§7야생 서버에서 즐거운 시간 보내세요!");
-                                            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                                            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
-                                        });
-                                    }
-                                });
-                    }
-                }, 100L); // 5초 후 신규 혜택 지급
+        try {
+            // 데이터베이스에 플레이어 등록
+            if (plugin.getDatabaseManager() != null) {
+                plugin.getDatabaseManager().createOrUpdatePlayer(player.getUniqueId(), player.getName());
             }
+
+            // 직업 시스템이 활성화된 경우
+            if (plugin.isFeatureEnabled("job_system") && plugin.getJobManager() != null) {
+
+                // 강제 직업 선택이 활성화된 경우
+                boolean forceJobSelection = plugin.getConfig().getBoolean("job_system.force_job_selection", true);
+                int delay = plugin.getConfig().getInt("job_system.job_selection_delay", 60);
+
+                if (forceJobSelection) {
+                    // 지연 후 직업 선택 확인
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            if (player.isOnline()) {
+                                checkJobSelection(player);
+                            }
+                        }
+                    }.runTaskLater(plugin, delay * 20L); // 초를 틱으로 변환
+                }
+            }
+
+            plugin.getLogger().info(player.getName() + "이(가) 서버에 접속했습니다.");
+
+        } catch (Exception e) {
+            plugin.getLogger().severe("플레이어 접속 처리 중 오류: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 플레이어 퇴장 이벤트
+     */
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+
+        try {
+            plugin.getLogger().info(player.getName() + "이(가) 서버에서 퇴장했습니다.");
+
+            // 추가적인 정리 작업이 필요하면 여기에 추가
+
+        } catch (Exception e) {
+            plugin.getLogger().warning("플레이어 퇴장 처리 중 오류: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 직업 선택 확인 및 안내
+     */
+    private void checkJobSelection(Player player) {
+        try {
+            JobManager jobManager = plugin.getJobManager();
+            if (jobManager == null) {
+                plugin.getLogger().warning("JobManager가 null입니다 - 직업 선택 확인 불가");
+                return;
+            }
+
+            // 플레이어가 여전히 온라인인지 확인
+            if (!player.isOnline()) {
+                return;
+            }
+
+            jobManager.hasSelectedJob(player.getUniqueId()).thenAccept(hasJob -> {
+                // 메인 스레드에서 실행
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!player.isOnline()) {
+                        return; // 플레이어가 오프라인이 된 경우
+                    }
+
+                    if (!hasJob) {
+                        // 직업 미선택 플레이어에게 안내
+                        sendJobSelectionReminder(player);
+
+                        // 1분 후 다시 알림
+                        new BukkitRunnable() {
+                            @Override
+                            public void run() {
+                                if (player.isOnline()) {
+                                    jobManager.hasSelectedJob(player.getUniqueId()).thenAccept(stillNoJob -> {
+                                        if (!stillNoJob) {
+                                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                                if (player.isOnline()) {
+                                                    player.sendMessage("§e직업을 선택하여 특수 능력을 활용하세요! §7/job select");
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                        }.runTaskLater(plugin, 1200L); // 1분 후
+                    }
+                });
+            }).exceptionally(throwable -> {
+                // 오류 처리
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    plugin.getLogger().warning("직업 선택 확인 중 오류: " + throwable.getMessage());
+                });
+                return null;
+            });
+
+        } catch (Exception e) {
+            plugin.getLogger().severe("checkJobSelection 오류: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 직업 선택 안내 메시지 전송
+     */
+    private void sendJobSelectionReminder(Player player) {
+        try {
+            player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            player.sendMessage("§e§l⚠️ 직업 선택 안내");
+            player.sendMessage("");
+            player.sendMessage("§c아직 직업을 선택하지 않으셨습니다!");
+            player.sendMessage("§a직업을 선택하면 특수 능력을 얻을 수 있습니다.");
+            player.sendMessage("");
+            player.sendMessage("§e명령어: §f/job select");
+            player.sendMessage("§7또는 §e/job info §7로 직업 정보를 확인하세요.");
+            player.sendMessage("");
+            player.sendMessage("§a§l💡 직업 선택의 이점:");
+            player.sendMessage("§7• 각 직업별 특수 능력 획득");
+            player.sendMessage("§7• 전투/채굴/탐험에서 보너스");
+            player.sendMessage("§7• 야생 서버만의 특별한 경험!");
+            player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        } catch (Exception e) {
+            plugin.getLogger().warning("직업 선택 안내 메시지 전송 중 오류: " + e.getMessage());
         }
     }
 }
