@@ -1,11 +1,14 @@
 package com.ggm.ggmsurvival.commands;
 
+import com.ggm.ggmsurvival.GGMSurvival;
+import com.ggm.ggmsurvival.managers.JobManager;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import com.ggm.ggmsurvival.GGMSurvival;
-import com.ggm.ggmsurvival.managers.JobManager;
+
+import java.util.UUID;
 
 public class JobCommand implements CommandExecutor {
 
@@ -27,22 +30,28 @@ public class JobCommand implements CommandExecutor {
         Player player = (Player) sender;
 
         if (args.length == 0) {
-            // 현재 직업 정보 표시 또는 직업 선택 GUI
-            showJobInfo(player);
+            showJobHelp(player);
             return true;
         }
 
-        String subCommand = args[0].toLowerCase();
-
-        switch (subCommand) {
+        switch (args[0].toLowerCase()) {
             case "select":
             case "선택":
-                openJobSelection(player);
+                if (args.length < 2) {
+                    player.sendMessage("§c사용법: /job select <직업명>");
+                    player.sendMessage("§7사용 가능한 직업: 탱커, 검사, 궁수");
+                    return true;
+                }
+                selectJob(player, args[1]);
+                break;
+
+            case "gui":
+                jobManager.openJobSelectionGUI(player);
                 break;
 
             case "info":
             case "정보":
-                showDetailedJobInfo(player);
+                showJobInfo(player);
                 break;
 
             case "list":
@@ -50,20 +59,8 @@ public class JobCommand implements CommandExecutor {
                 showJobList(player);
                 break;
 
-            case "reset":
-                if (args.length < 2) {
-                    player.sendMessage("§c사용법: /job reset <플레이어> (OP 전용)");
-                    return true;
-                }
-                if (!player.hasPermission("ggm.job.admin")) {
-                    player.sendMessage("§c권한이 없습니다.");
-                    return true;
-                }
-                resetPlayerJob(player, args[1]);
-                break;
-
             default:
-                sendHelp(player);
+                showJobHelp(player);
                 break;
         }
 
@@ -71,165 +68,181 @@ public class JobCommand implements CommandExecutor {
     }
 
     /**
+     * 직업 선택 - 스코어보드 업데이트 포함
+     */
+    private void selectJob(Player player, String jobName) {
+        try {
+            JobManager.JobType jobType;
+
+            switch (jobName.toLowerCase()) {
+                case "탱커":
+                case "tank":
+                    jobType = JobManager.JobType.TANK;
+                    break;
+                case "검사":
+                case "warrior":
+                    jobType = JobManager.JobType.WARRIOR;
+                    break;
+                case "궁수":
+                case "archer":
+                    jobType = JobManager.JobType.ARCHER;
+                    break;
+                default:
+                    player.sendMessage("§c알 수 없는 직업입니다!");
+                    player.sendMessage("§7사용 가능한 직업: 탱커, 검사, 궁수");
+                    return;
+            }
+
+            // 현재 직업 확인
+            UUID uuid = player.getUniqueId();
+            jobManager.getPlayerJob(uuid).thenAccept(currentJob -> {
+                if (currentJob == jobType) {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        player.sendMessage("§c이미 " + jobType.getDisplayName() + "§c 직업입니다!");
+                    });
+                    return;
+                }
+
+                // 직업 변경 가능한지 확인
+                boolean allowJobChange = plugin.getConfig().getBoolean("job_system.allow_job_change", false);
+                if (currentJob != JobManager.JobType.NONE && !allowJobChange) {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        player.sendMessage("§c이미 직업이 설정되어 있습니다!");
+                        player.sendMessage("§7현재 직업: " + currentJob.getDisplayName());
+                        player.sendMessage("§7직업 변경이 허용되지 않습니다.");
+                    });
+                    return;
+                }
+
+                // 직업 설정 (스코어보드 업데이트 포함)
+                jobManager.setPlayerJobWithUpdate(uuid, player.getName(), jobType).thenAccept(success -> {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (success) {
+                            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                            player.sendMessage("§a§l✅ 직업 선택 완료!");
+                            player.sendMessage("§7선택된 직업: " + jobType.getDisplayName());
+                            player.sendMessage("");
+
+                            showJobDescription(player, jobType);
+
+                            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+
+                            plugin.getLogger().info(String.format("[직업선택] %s님이 %s 직업을 선택했습니다.",
+                                    player.getName(), jobType.getName()));
+                        } else {
+                            player.sendMessage("§c직업 설정에 실패했습니다. 관리자에게 문의하세요.");
+                        }
+                    });
+                }).exceptionally(throwable -> {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        player.sendMessage("§c직업 설정 중 오류가 발생했습니다: " + throwable.getMessage());
+                    });
+                    return null;
+                });
+            });
+
+        } catch (Exception e) {
+            player.sendMessage("§c직업 선택 중 오류가 발생했습니다.");
+            plugin.getLogger().severe("직업 선택 오류: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 직업 설명 표시
+     */
+    private void showJobDescription(Player player, JobManager.JobType jobType) {
+        switch (jobType) {
+            case TANK:
+                player.sendMessage("§c[탱커 효과]");
+                player.sendMessage("§7• 흉갑 착용 시 체력 +4 (하트 2개)");
+                player.sendMessage("§7• 방패 사용 시 체력 회복 (3초 쿨타임)");
+                player.sendMessage("§7• 받는 피해 10% 감소");
+                break;
+            case WARRIOR:
+                player.sendMessage("§6[검사 효과]");
+                player.sendMessage("§7• 검 공격력 20% 증가");
+                player.sendMessage("§7• 10% 확률로 치명타 (1.5배 피해)");
+                player.sendMessage("§7• 검 내구도 보호 15% 확률");
+                break;
+            case ARCHER:
+                player.sendMessage("§a[궁수 효과]");
+                player.sendMessage("§7• 활 공격력 15% 증가");
+                player.sendMessage("§7• 화살 절약 확률 20%");
+                player.sendMessage("§7• 가죽부츠 착용 시 속도 효과");
+                player.sendMessage("§7• 기본 이동속도 10% 증가");
+                break;
+        }
+    }
+
+    /**
      * 현재 직업 정보 표시
      */
     private void showJobInfo(Player player) {
-        jobManager.getPlayerJob(player.getUniqueId()).thenAccept(jobType -> {
-            player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            player.sendMessage("§e§l나의 직업 정보");
-            player.sendMessage("");
+        UUID uuid = player.getUniqueId();
 
-            if (jobType == JobManager.JobType.NONE) {
-                player.sendMessage("§7현재 직업: §c없음");
+        jobManager.getPlayerJob(uuid).thenAccept(jobType -> {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                player.sendMessage("§e§l📋 내 직업 정보");
                 player.sendMessage("");
-                player.sendMessage("§e아직 직업을 선택하지 않으셨습니다!");
-                player.sendMessage("§7/job select 명령어로 직업을 선택하세요.");
-                player.sendMessage("");
-                player.sendMessage("§a§l💡 직업 선택의 이점:");
-                player.sendMessage("§7• 각 직업별 특수 능력 획득");
-                player.sendMessage("§7• 전투/채굴/탐험에서 보너스");
-                player.sendMessage("§7• 야생 서버만의 특별한 경험!");
-            } else {
                 player.sendMessage("§7현재 직업: " + jobType.getDisplayName());
                 player.sendMessage("");
-                player.sendMessage("§e직업 효과:");
 
-                switch (jobType) {
-                    case TANK:
-                        player.sendMessage("§7• §c흉갑 착용 시 체력 증가 (+2하트)");
-                        player.sendMessage("§7• §c방패 사용 시 체력 회복 (0.5하트)");
-                        player.sendMessage("§7• §c받는 피해 감소");
-                        break;
-                    case WARRIOR:
-                        player.sendMessage("§7• §6검 사용 시 공격력 증가 (+20%)");
-                        player.sendMessage("§7• §6치명타 확률 증가 (10%)");
-                        player.sendMessage("§7• §6검 내구도 소모 감소");
-                        break;
-                    case ARCHER:
-                        player.sendMessage("§7• §a활 사용 시 공격력 증가 (+15%)");
-                        player.sendMessage("§7• §a가죽부츠 착용 시 이동속도 증가");
-                        player.sendMessage("§7• §a화살 소모 확률 감소");
-                        break;
+                if (jobType != JobManager.JobType.NONE) {
+                    showJobDescription(player, jobType);
+                } else {
+                    player.sendMessage("§7직업이 설정되지 않았습니다.");
+                    player.sendMessage("§a/job select <직업명> §7으로 직업을 선택하세요!");
                 }
 
-                player.sendMessage("");
-                player.sendMessage("§a선택한 직업의 특성을 활용해보세요!");
-            }
-
-            player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            });
         });
     }
 
     /**
-     * 직업 선택 GUI 열기
-     */
-    private void openJobSelection(Player player) {
-        jobManager.hasSelectedJob(player.getUniqueId()).thenAccept(hasJob -> {
-            if (hasJob) {
-                player.sendMessage("§c이미 직업을 선택하셨습니다!");
-                player.sendMessage("§7현재 직업 정보를 보려면 /job info 를 사용하세요.");
-                player.sendMessage("§e§l참고: §7직업은 한 번 선택하면 변경할 수 없습니다!");
-                return;
-            }
-
-            // 직업 선택 GUI 열기
-            jobManager.openJobSelectionGUI(player);
-        });
-    }
-
-    /**
-     * 상세 직업 정보 표시
-     */
-    private void showDetailedJobInfo(Player player) {
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l야생 서버 직업 안내");
-        player.sendMessage("");
-
-        player.sendMessage("§c§l🛡 탱커 (TANK)");
-        player.sendMessage("§7방어와 체력에 특화된 근접 전투 직업");
-        player.sendMessage("§7효과: 흉갑 착용 시 체력 증가, 방패로 체력 회복");
-        player.sendMessage("§7추천: 몬스터와 정면 대결을 즐기는 플레이어");
-        player.sendMessage("");
-
-        player.sendMessage("§6§l⚔ 검사 (WARRIOR)");
-        player.sendMessage("§7검술에 특화된 공격적인 근접 전투 직업");
-        player.sendMessage("§7효과: 검 공격력 증가, 치명타 확률 증가");
-        player.sendMessage("§7추천: 높은 데미지로 빠르게 적을 처치하고 싶은 플레이어");
-        player.sendMessage("");
-
-        player.sendMessage("§a§l🏹 궁수 (ARCHER)");
-        player.sendMessage("§7원거리 공격과 기동성에 특화된 직업");
-        player.sendMessage("§7효과: 활 공격력 증가, 가죽부츠 착용 시 이동속도 증가");
-        player.sendMessage("§7추천: 안전한 거리에서 전투하고 빠른 이동을 원하는 플레이어");
-        player.sendMessage("");
-
-        player.sendMessage("§e§l⚠️ 중요한 안내:");
-        player.sendMessage("§7• 직업은 §c한 번 선택하면 변경할 수 없습니다!");
-        player.sendMessage("§7• 각 직업은 고유한 플레이 스타일을 제공합니다");
-        player.sendMessage("§7• 신중하게 선택하시기 바랍니다");
-
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
-
-    /**
-     * 직업 목록 표시
+     * 사용 가능한 직업 목록 표시
      */
     private void showJobList(Player player) {
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l사용 가능한 직업");
+        player.sendMessage("§e§l🏆 사용 가능한 직업");
         player.sendMessage("");
-        player.sendMessage("§c탱커 §7- 방어형 근접 전투 직업");
-        player.sendMessage("§6검사 §7- 공격형 근접 전투 직업");
-        player.sendMessage("§a궁수 §7- 원거리 전투 직업");
+
+        player.sendMessage("§c§l탱커 (Tank)");
+        player.sendMessage("§7• 방어에 특화된 근접 직업");
+        player.sendMessage("§7• 높은 생존력과 체력");
         player.sendMessage("");
-        player.sendMessage("§7자세한 정보: §e/job info");
-        player.sendMessage("§7직업 선택: §e/job select");
+
+        player.sendMessage("§6§l검사 (Warrior)");
+        player.sendMessage("§7• 공격에 특화된 근접 직업");
+        player.sendMessage("§7• 높은 공격력과 치명타");
+        player.sendMessage("");
+
+        player.sendMessage("§a§l궁수 (Archer)");
+        player.sendMessage("§7• 원거리 공격 특화 직업");
+        player.sendMessage("§7• 빠른 이동속도와 화살 절약");
+        player.sendMessage("");
+
+        player.sendMessage("§e명령어:");
+        player.sendMessage("§a/job select <직업명> §7- 직업 선택");
+        player.sendMessage("§a/job gui §7- GUI로 직업 선택");
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
-
-    /**
-     * 플레이어 직업 초기화 (OP 전용)
-     */
-    private void resetPlayerJob(Player sender, String targetName) {
-        Player target = plugin.getServer().getPlayer(targetName);
-        if (target == null) {
-            sender.sendMessage("§c플레이어를 찾을 수 없습니다: " + targetName);
-            return;
-        }
-
-        jobManager.setPlayerJob(target.getUniqueId(), target.getName(), JobManager.JobType.NONE)
-                .thenAccept(success -> {
-                    if (success) {
-                        sender.sendMessage("§a" + targetName + "의 직업을 초기화했습니다.");
-                        target.sendMessage("§e관리자에 의해 직업이 초기화되었습니다.");
-                        target.sendMessage("§7다시 /job select 명령어로 직업을 선택할 수 있습니다.");
-
-                        plugin.getLogger().info(String.format("[직업초기화] %s이(가) %s의 직업을 초기화했습니다.",
-                                sender.getName(), targetName));
-                    } else {
-                        sender.sendMessage("§c직업 초기화에 실패했습니다.");
-                    }
-                });
     }
 
     /**
      * 도움말 표시
      */
-    private void sendHelp(Player player) {
+    private void showJobHelp(Player player) {
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l직업 시스템 명령어");
+        player.sendMessage("§e§l💼 직업 시스템 도움말");
         player.sendMessage("");
-        player.sendMessage("§7/job §f- 현재 직업 정보 확인");
-        player.sendMessage("§7/job select §f- 직업 선택 GUI 열기");
-        player.sendMessage("§7/job info §f- 모든 직업 상세 정보");
-        player.sendMessage("§7/job list §f- 직업 목록 확인");
-
-        if (player.hasPermission("ggm.job.admin")) {
-            player.sendMessage("");
-            player.sendMessage("§c관리자 명령어:");
-            player.sendMessage("§7/job reset <플레이어> §f- 직업 초기화");
-        }
-
+        player.sendMessage("§a/job select <직업명> §7- 직업 선택");
+        player.sendMessage("§a/job gui §7- GUI로 직업 선택");
+        player.sendMessage("§a/job info §7- 내 직업 정보 확인");
+        player.sendMessage("§a/job list §7- 사용 가능한 직업 목록");
+        player.sendMessage("");
+        player.sendMessage("§7사용 가능한 직업: §f탱커, 검사, 궁수");
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 }

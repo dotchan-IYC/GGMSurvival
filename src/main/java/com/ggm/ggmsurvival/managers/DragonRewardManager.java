@@ -1,22 +1,19 @@
+// DragonRewardManager.java - 엔더드래곤 보상 시스템
 package com.ggm.ggmsurvival.managers;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Sound;
 import org.bukkit.entity.EnderDragon;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import com.ggm.ggmsurvival.GGMSurvival;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -24,36 +21,29 @@ public class DragonRewardManager implements Listener {
 
     private final GGMSurvival plugin;
     private final DatabaseManager databaseManager;
-    private final EconomyManager economyManager;
 
-    // 보상 설정
-    private final long DRAGON_REWARD = 100000L; // 100,000G
-    private final int DAMAGE_THRESHOLD = 1000; // 최소 1000 피해량
+    // 드래곤별 플레이어 기여도 저장
+    private final Map<UUID, Map<UUID, Double>> dragonDamage = new HashMap<>();
 
     public DragonRewardManager(GGMSurvival plugin) {
         this.plugin = plugin;
         this.databaseManager = plugin.getDatabaseManager();
-        this.economyManager = plugin.getEconomyManager();
-
-        // 테이블 생성
-        createDragonTable();
+        createDragonRewardTable();
     }
 
     /**
      * 드래곤 보상 테이블 생성
      */
-    private void createDragonTable() {
+    private void createDragonRewardTable() {
         String sql = """
             CREATE TABLE IF NOT EXISTS ggm_dragon_rewards (
-                id INT AUTO_INCREMENT PRIMARY KEY,
                 uuid VARCHAR(36) NOT NULL,
                 player_name VARCHAR(16) NOT NULL,
-                reward_amount BIGINT NOT NULL,
-                damage_dealt INT NOT NULL,
                 reward_date DATE NOT NULL,
+                damage_dealt DOUBLE NOT NULL,
+                reward_amount BIGINT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_uuid_date (uuid, reward_date),
-                INDEX idx_reward_date (reward_date)
+                PRIMARY KEY (uuid, reward_date)
             )
             """;
 
@@ -61,163 +51,129 @@ public class DragonRewardManager implements Listener {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.executeUpdate();
             plugin.getLogger().info("드래곤 보상 테이블이 준비되었습니다.");
-        } catch (SQLException e) {
+        } catch (Exception e) {
             plugin.getLogger().severe("드래곤 보상 테이블 생성 실패: " + e.getMessage());
         }
     }
 
     /**
-     * 엔더드래곤 사망 이벤트
+     * 드래곤 피해 기록
      */
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onDragonDeath(EntityDeathEvent event) {
-        Entity entity = event.getEntity();
+    @EventHandler
+    public void onDragonDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof EnderDragon)) return;
+        if (!(event.getDamager() instanceof Player)) return;
 
-        // 엔더드래곤인지 확인
-        if (!(entity instanceof EnderDragon)) return;
+        EnderDragon dragon = (EnderDragon) event.getEntity();
+        Player player = (Player) event.getDamager();
+        double damage = event.getFinalDamage();
 
-        EnderDragon dragon = (EnderDragon) entity;
+        UUID dragonId = dragon.getUniqueId();
+        UUID playerId = player.getUniqueId();
 
-        plugin.getLogger().info("엔더드래곤이 처치되었습니다! 보상 계산 중...");
+        // 드래곤별 피해량 기록
+        dragonDamage.computeIfAbsent(dragonId, k -> new HashMap<>())
+                .merge(playerId, damage, Double::sum);
 
-        // 드래곤에게 피해를 준 플레이어들 찾기
-        Map<Player, Double> damageMap = calculatePlayerDamage(dragon);
-
-        if (damageMap.isEmpty()) {
-            plugin.getLogger().warning("드래곤 처치에 기여한 플레이어를 찾을 수 없습니다.");
-            return;
-        }
-
-        // 보상 지급 처리
-        processDragonRewards(damageMap);
+        plugin.getLogger().info(String.format("[드래곤피해] %s이(가) 드래곤에게 %.1f 피해를 입혔습니다.",
+                player.getName(), damage));
     }
 
     /**
-     * 플레이어별 피해량 계산 (간단한 방식)
+     * 드래곤 처치 시 보상 지급
      */
-    private Map<Player, Double> calculatePlayerDamage(EnderDragon dragon) {
-        Map<Player, Double> damageMap = new HashMap<>();
+    @EventHandler
+    public void onDragonDeath(EntityDeathEvent event) {
+        if (!(event.getEntity() instanceof EnderDragon)) return;
 
-        // 드래곤 주변 플레이어들을 찾아서 기여도 계산
-        // 실제로는 더 정교한 피해량 추적이 필요하지만, 간단하게 구현
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.getWorld().equals(dragon.getWorld())) {
-                double distance = player.getLocation().distance(dragon.getLocation());
+        EnderDragon dragon = (EnderDragon) event.getEntity();
+        UUID dragonId = dragon.getUniqueId();
 
-                // 드래곤 근처에 있던 플레이어들에게 기여도 부여
-                if (distance <= 100) { // 100블록 내
-                    // 거리에 따른 기여도 (가까울수록 높음)
-                    double contribution = Math.max(0, 100 - distance) * 10;
-                    damageMap.put(player, contribution);
-                }
-            }
+        // 해당 드래곤에게 피해를 입힌 플레이어들 확인
+        Map<UUID, Double> damageMap = dragonDamage.remove(dragonId);
+        if (damageMap == null || damageMap.isEmpty()) {
+            plugin.getLogger().info("드래곤이 처치되었지만 기여한 플레이어가 없습니다.");
+            return;
         }
 
-        return damageMap;
+        plugin.getLogger().info("§d🐉 엔더드래곤이 처치되었습니다! 보상을 계산 중...");
+
+        // 서버에 알림
+        Bukkit.broadcastMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Bukkit.broadcastMessage("§e§l🐉 엔더드래곤이 처치되었습니다!");
+        Bukkit.broadcastMessage("§a기여한 플레이어들에게 보상을 지급합니다...");
+        Bukkit.broadcastMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // 각 플레이어에게 보상 지급
+        damageMap.forEach((playerId, damage) -> {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player != null) {
+                processDragonReward(player, damage);
+            }
+        });
     }
 
     /**
      * 드래곤 보상 처리
      */
-    private void processDragonRewards(Map<Player, Double> damageMap) {
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-        // 총 기여도 계산
-        double totalDamage = damageMap.values().stream().mapToDouble(Double::doubleValue).sum();
-
-        plugin.getLogger().info(String.format("드래곤 처치 기여자 %d명, 총 기여도: %.1f",
-                damageMap.size(), totalDamage));
-
-        // 각 플레이어에게 보상 지급
-        for (Map.Entry<Player, Double> entry : damageMap.entrySet()) {
-            Player player = entry.getKey();
-            double damage = entry.getValue();
-
-            // 최소 기여도 확인
-            if (damage < DAMAGE_THRESHOLD) {
-                player.sendMessage("§c드래곤 처치 기여도가 부족하여 보상을 받을 수 없습니다.");
-                player.sendMessage("§7(최소 기여도: " + DAMAGE_THRESHOLD + ", 현재: " + (int)damage + ")");
-                continue;
-            }
-
-            // 오늘 이미 보상을 받았는지 확인
-            hasReceivedRewardToday(player.getUniqueId()).thenAccept(alreadyReceived -> {
-                if (alreadyReceived) {
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        player.sendMessage("§c오늘 이미 드래곤 보상을 받으셨습니다!");
-                        player.sendMessage("§7보상은 하루에 한 번만 받을 수 있습니다.");
-                    });
-                    return;
-                }
-
-                // 기여도에 따른 보상 계산
-                double contribution = damage / totalDamage;
-                long reward = Math.max(10000L, (long)(DRAGON_REWARD * contribution)); // 최소 10,000G
-
-                // 보상 지급
-                economyManager.addMoney(player.getUniqueId(), reward).thenAccept(success -> {
-                    if (success) {
-                        // 보상 기록 저장
-                        recordDragonReward(player.getUniqueId(), player.getName(), reward, (int)damage)
-                                .thenRun(() -> {
-                                    Bukkit.getScheduler().runTask(plugin, () -> {
-                                        // 보상 성공 메시지
-                                        announceDragonReward(player, reward, damage, totalDamage);
-                                    });
-                                });
-                    } else {
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            player.sendMessage("§c보상 지급 중 오류가 발생했습니다. 관리자에게 문의해주세요.");
-                        });
-                    }
-                });
-            });
+    private void processDragonReward(Player player, double damageDealt) {
+        // 최소 공적치 확인 (50으로 변경)
+        double minDamage = plugin.getConfig().getDouble("dragon_reward.min_damage_threshold", 50.0);
+        if (damageDealt < minDamage) {
+            player.sendMessage("§c드래곤 처치 기여도가 부족합니다. (최소: " + minDamage + ", 현재: " + String.format("%.1f", damageDealt) + ")");
+            return;
         }
 
-        // 전체 서버 공지
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            Bukkit.broadcastMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            Bukkit.broadcastMessage("§d§l🐉 엔더드래곤이 처치되었습니다! 🐉");
-            Bukkit.broadcastMessage("§7기여한 용사들에게 보상이 지급되었습니다!");
-            Bukkit.broadcastMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-            // 전체 효과음
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+        // 오늘 이미 보상을 받았는지 확인
+        hasReceivedTodayReward(player.getUniqueId()).thenAccept(hasReceived -> {
+            if (hasReceived) {
+                player.sendMessage("§c오늘 이미 드래곤 보상을 받으셨습니다!");
+                return;
             }
-        }, 60L); // 3초 후 공지
+
+            // 보상 계산 (기여도에 따라)
+            long baseReward = plugin.getConfig().getLong("dragon_reward.base_reward", 100000);
+            long minReward = plugin.getConfig().getLong("dragon_reward.min_reward", 10000);
+
+            // 기여도 비율 계산 (최소 10%, 최대 100%)
+            double contributionRatio = Math.min(1.0, Math.max(0.1, damageDealt / 500.0));
+            long rewardAmount = Math.max(minReward, (long) (baseReward * contributionRatio));
+
+            // 보상 지급
+            plugin.getEconomyManager().addMoney(player.getUniqueId(), player.getName(), rewardAmount)
+                    .thenAccept(success -> {
+                        if (success) {
+                            // 데이터베이스에 보상 기록
+                            recordDragonReward(player.getUniqueId(), player.getName(), damageDealt, rewardAmount);
+
+                            // 플레이어에게 알림
+                            player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                            player.sendMessage("§e§l🐉 드래곤 처치 보상!");
+                            player.sendMessage("");
+                            player.sendMessage("§a기여도: §f" + String.format("%.1f", damageDealt));
+                            player.sendMessage("§a보상 금액: §6" + String.format("%,d", rewardAmount) + "G");
+                            player.sendMessage("§7기여도 비율: " + String.format("%.1f", contributionRatio * 100) + "%");
+                            player.sendMessage("");
+                            player.sendMessage("§d수고하셨습니다! 🎉");
+                            player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+                            // 서버 공지
+                            Bukkit.broadcastMessage(String.format("§a%s님이 드래곤 보상으로 §6%,dG§a를 받았습니다!",
+                                    player.getName(), rewardAmount));
+
+                            plugin.getLogger().info(String.format("[드래곤보상] %s: %.1f 피해, %,dG 지급",
+                                    player.getName(), damageDealt, rewardAmount));
+                        } else {
+                            player.sendMessage("§c보상 지급에 실패했습니다. 관리자에게 문의하세요.");
+                        }
+                    });
+        });
     }
 
     /**
-     * 드래곤 보상 공지
+     * 오늘 보상 받았는지 확인
      */
-    private void announceDragonReward(Player player, long reward, double damage, double totalDamage) {
-        double contribution = (damage / totalDamage) * 100;
-
-        player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§d§l🐉 드래곤 처치 보상! 🐉");
-        player.sendMessage("");
-        player.sendMessage("§7기여도: §f" + String.format("%.1f%%", contribution));
-        player.sendMessage("§7보상: §6" + formatMoney(reward) + "G");
-        player.sendMessage("");
-        player.sendMessage("§a축하합니다! 용감한 용사여!");
-        player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-        // 특별 효과음과 파티클
-        player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_DEATH, 1.0f, 1.2f);
-        player.getWorld().spawnParticle(org.bukkit.Particle.DRAGON_BREATH,
-                player.getLocation().add(0, 1, 0), 30);
-        player.getWorld().spawnParticle(org.bukkit.Particle.FIREWORKS_SPARK,
-                player.getLocation().add(0, 2, 0), 50);
-
-        plugin.getLogger().info(String.format("[드래곤보상] %s: %dG (기여도: %.1f%%)",
-                player.getName(), reward, contribution));
-    }
-
-    /**
-     * 오늘 보상을 받았는지 확인
-     */
-    private CompletableFuture<Boolean> hasReceivedRewardToday(UUID uuid) {
+    private CompletableFuture<Boolean> hasReceivedTodayReward(UUID uuid) {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection conn = databaseManager.getConnection()) {
                 String sql = "SELECT COUNT(*) FROM ggm_dragon_rewards WHERE uuid = ? AND reward_date = CURDATE()";
@@ -230,7 +186,7 @@ public class DragonRewardManager implements Listener {
                     }
                 }
                 return false;
-            } catch (SQLException e) {
+            } catch (Exception e) {
                 plugin.getLogger().severe("드래곤 보상 확인 실패: " + e.getMessage());
                 return false;
             }
@@ -238,142 +194,54 @@ public class DragonRewardManager implements Listener {
     }
 
     /**
-     * 드래곤 보상 기록 저장
+     * 드래곤 보상 기록
      */
-    private CompletableFuture<Void> recordDragonReward(UUID uuid, String playerName, long reward, int damage) {
-        return CompletableFuture.runAsync(() -> {
+    private void recordDragonReward(UUID uuid, String playerName, double damage, long rewardAmount) {
+        CompletableFuture.runAsync(() -> {
             try (Connection conn = databaseManager.getConnection()) {
                 String sql = """
-                    INSERT INTO ggm_dragon_rewards 
-                    (uuid, player_name, reward_amount, damage_dealt, reward_date) 
-                    VALUES (?, ?, ?, ?, CURDATE())
+                    INSERT INTO ggm_dragon_rewards (uuid, player_name, reward_date, damage_dealt, reward_amount)
+                    VALUES (?, ?, CURDATE(), ?, ?)
                     """;
-
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setString(1, uuid.toString());
                     stmt.setString(2, playerName);
-                    stmt.setLong(3, reward);
-                    stmt.setInt(4, damage);
+                    stmt.setDouble(3, damage);
+                    stmt.setLong(4, rewardAmount);
                     stmt.executeUpdate();
                 }
-            } catch (SQLException e) {
+            } catch (Exception e) {
                 plugin.getLogger().severe("드래곤 보상 기록 실패: " + e.getMessage());
             }
         });
     }
 
     /**
-     * 플레이어의 드래곤 처치 기록 조회
+     * 플레이어의 오늘 드래곤 처치 현황 확인
      */
-    public CompletableFuture<List<DragonRecord>> getPlayerDragonHistory(UUID uuid) {
+    public CompletableFuture<String> getTodayDragonInfo(UUID uuid) {
         return CompletableFuture.supplyAsync(() -> {
-            List<DragonRecord> records = new ArrayList<>();
-
             try (Connection conn = databaseManager.getConnection()) {
                 String sql = """
-                    SELECT reward_amount, damage_dealt, reward_date 
+                    SELECT damage_dealt, reward_amount 
                     FROM ggm_dragon_rewards 
-                    WHERE uuid = ? 
-                    ORDER BY reward_date DESC 
-                    LIMIT 10
+                    WHERE uuid = ? AND reward_date = CURDATE()
                     """;
-
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setString(1, uuid.toString());
                     try (ResultSet rs = stmt.executeQuery()) {
-                        while (rs.next()) {
-                            records.add(new DragonRecord(
-                                    rs.getLong("reward_amount"),
-                                    rs.getInt("damage_dealt"),
-                                    rs.getDate("reward_date").toLocalDate()
-                            ));
+                        if (rs.next()) {
+                            double damage = rs.getDouble("damage_dealt");
+                            long reward = rs.getLong("reward_amount");
+                            return String.format("§a오늘 드래곤 보상: §6%,dG §7(기여도: %.1f)", reward, damage);
                         }
                     }
                 }
-            } catch (SQLException e) {
-                plugin.getLogger().severe("드래곤 기록 조회 실패: " + e.getMessage());
+                return "§7오늘 아직 드래곤 보상을 받지 않았습니다.";
+            } catch (Exception e) {
+                plugin.getLogger().severe("드래곤 정보 조회 실패: " + e.getMessage());
+                return "§c정보를 불러오는데 실패했습니다.";
             }
-
-            return records;
         });
-    }
-
-    /**
-     * 오늘의 드래곤 처치 현황 조회
-     */
-    public CompletableFuture<List<TodayDragonRecord>> getTodayDragonKills() {
-        return CompletableFuture.supplyAsync(() -> {
-            List<TodayDragonRecord> records = new ArrayList<>();
-
-            try (Connection conn = databaseManager.getConnection()) {
-                String sql = """
-                    SELECT player_name, reward_amount, damage_dealt 
-                    FROM ggm_dragon_rewards 
-                    WHERE reward_date = CURDATE() 
-                    ORDER BY reward_amount DESC
-                    """;
-
-                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                    try (ResultSet rs = stmt.executeQuery()) {
-                        while (rs.next()) {
-                            records.add(new TodayDragonRecord(
-                                    rs.getString("player_name"),
-                                    rs.getLong("reward_amount"),
-                                    rs.getInt("damage_dealt")
-                            ));
-                        }
-                    }
-                }
-            } catch (SQLException e) {
-                plugin.getLogger().severe("오늘 드래곤 기록 조회 실패: " + e.getMessage());
-            }
-
-            return records;
-        });
-    }
-
-    /**
-     * 금액 포맷팅
-     */
-    private String formatMoney(long amount) {
-        return String.format("%,d", amount);
-    }
-
-    /**
-     * 드래곤 처치 기록 클래스
-     */
-    public static class DragonRecord {
-        private final long rewardAmount;
-        private final int damageDealt;
-        private final LocalDate date;
-
-        public DragonRecord(long rewardAmount, int damageDealt, LocalDate date) {
-            this.rewardAmount = rewardAmount;
-            this.damageDealt = damageDealt;
-            this.date = date;
-        }
-
-        public long getRewardAmount() { return rewardAmount; }
-        public int getDamageDealt() { return damageDealt; }
-        public LocalDate getDate() { return date; }
-    }
-
-    /**
-     * 오늘 드래곤 처치 기록 클래스
-     */
-    public static class TodayDragonRecord {
-        private final String playerName;
-        private final long rewardAmount;
-        private final int damageDealt;
-
-        public TodayDragonRecord(String playerName, long rewardAmount, int damageDealt) {
-            this.playerName = playerName;
-            this.rewardAmount = rewardAmount;
-            this.damageDealt = damageDealt;
-        }
-
-        public String getPlayerName() { return playerName; }
-        public long getRewardAmount() { return rewardAmount; }
-        public int getDamageDealt() { return damageDealt; }
     }
 }

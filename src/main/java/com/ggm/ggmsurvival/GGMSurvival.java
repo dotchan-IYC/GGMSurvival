@@ -1,3 +1,4 @@
+// 수정된 GGMSurvival.java - 강화 시스템 활성화
 package com.ggm.ggmsurvival;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -11,11 +12,11 @@ public class GGMSurvival extends JavaPlugin {
 
     // 매니저들
     private DatabaseManager databaseManager;
+    private EconomyManager economyManager;
     private JobManager jobManager;
-    private EnchantUpgradeManager enchantUpgradeManager;
+    private EnchantUpgradeManager enchantUpgradeManager; // 활성화
     private DragonRewardManager dragonRewardManager;
     private NPCTradeManager npcTradeManager;
-    private EconomyManager economyManager;
 
     @Override
     public void onEnable() {
@@ -35,7 +36,7 @@ public class GGMSurvival extends JavaPlugin {
             registerListeners();
 
             getLogger().info("GGMSurvival 플러그인이 활성화되었습니다!");
-            getLogger().info("야생 서버 전용 기능들이 로드되었습니다!");
+            getLogger().info("모든 기능이 로드되었습니다!");
 
         } catch (Exception e) {
             getLogger().severe("플러그인 초기화 실패: " + e.getMessage());
@@ -79,7 +80,7 @@ public class GGMSurvival extends JavaPlugin {
 
             // 야생 서버 전용 기능들
             if (isFeatureEnabled("upgrade_system")) {
-                enchantUpgradeManager = new EnchantUpgradeManager(this);
+                enchantUpgradeManager = new EnchantUpgradeManager(this); // 활성화!
                 getLogger().info("강화 시스템 매니저 초기화 완료 (야생 서버 전용)");
             }
 
@@ -158,7 +159,7 @@ public class GGMSurvival extends JavaPlugin {
 
             // 야생 서버 전용 명령어들
             if (isFeatureEnabled("upgrade_system")) {
-                safeRegisterCommand("upgrade", new UpgradeCommand(this));
+                safeRegisterCommand("upgrade", new UpgradeCommand(this)); // 활성화!
                 safeRegisterCommand("강화", new UpgradeCommand(this));
             }
 
@@ -207,7 +208,7 @@ public class GGMSurvival extends JavaPlugin {
 
             // 야생 서버 전용 리스너들
             if (enchantUpgradeManager != null) {
-                getServer().getPluginManager().registerEvents(enchantUpgradeManager, this);
+                getServer().getPluginManager().registerEvents(enchantUpgradeManager, this); // 활성화!
                 getLogger().info("강화 시스템 리스너 등록 완료 (야생 전용)");
             }
 
@@ -237,12 +238,16 @@ public class GGMSurvival extends JavaPlugin {
         return databaseManager;
     }
 
+    public EconomyManager getEconomyManager() {
+        return economyManager;
+    }
+
     public JobManager getJobManager() {
         return jobManager;
     }
 
     public EnchantUpgradeManager getEnchantUpgradeManager() {
-        return enchantUpgradeManager;
+        return enchantUpgradeManager; // 활성화!
     }
 
     public DragonRewardManager getDragonRewardManager() {
@@ -251,46 +256,5 @@ public class GGMSurvival extends JavaPlugin {
 
     public NPCTradeManager getNPCTradeManager() {
         return npcTradeManager;
-    }
-
-    public EconomyManager getEconomyManager() {
-        return economyManager;
-    }
-
-    // 설정 관련 유틸리티 메소드들
-    public String getSafeConfigString(String path, String defaultValue) {
-        try {
-            return getConfig().getString(path, defaultValue);
-        } catch (Exception e) {
-            getLogger().warning("설정 읽기 실패: " + path + ", 기본값 사용: " + defaultValue);
-            return defaultValue;
-        }
-    }
-
-    public int getSafeConfigInt(String path, int defaultValue) {
-        try {
-            return getConfig().getInt(path, defaultValue);
-        } catch (Exception e) {
-            getLogger().warning("설정 읽기 실패: " + path + ", 기본값 사용: " + defaultValue);
-            return defaultValue;
-        }
-    }
-
-    public long getSafeConfigLong(String path, long defaultValue) {
-        try {
-            return getConfig().getLong(path, defaultValue);
-        } catch (Exception e) {
-            getLogger().warning("설정 읽기 실패: " + path + ", 기본값 사용: " + defaultValue);
-            return defaultValue;
-        }
-    }
-
-    public boolean getSafeConfigBoolean(String path, boolean defaultValue) {
-        try {
-            return getConfig().getBoolean(path, defaultValue);
-        } catch (Exception e) {
-            getLogger().warning("설정 읽기 실패: " + path + ", 기본값 사용: " + defaultValue);
-            return defaultValue;
-        }
     }
 }

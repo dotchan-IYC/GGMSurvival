@@ -10,21 +10,26 @@ import com.ggm.ggmsurvival.managers.DragonRewardManager;
 public class DragonCommand implements CommandExecutor {
 
     private final GGMSurvival plugin;
-    private final DragonRewardManager dragonManager;
+    private final DragonRewardManager dragonRewardManager;
 
     public DragonCommand(GGMSurvival plugin) {
         this.plugin = plugin;
-        this.dragonManager = plugin.getDragonRewardManager();
+        this.dragonRewardManager = plugin.getDragonRewardManager();
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("이 명령어는 플레이어만 사용할 수 있습니다.");
+            sender.sendMessage("§c이 명령어는 플레이어만 사용할 수 있습니다.");
             return true;
         }
 
         Player player = (Player) sender;
+
+        if (!plugin.isFeatureEnabled("dragon_reward")) {
+            player.sendMessage("§c드래곤 보상 시스템은 야생 서버에서만 사용할 수 있습니다!");
+            return true;
+        }
 
         if (args.length == 0) {
             showDragonInfo(player);
@@ -40,14 +45,14 @@ public class DragonCommand implements CommandExecutor {
                 break;
             case "today":
             case "오늘":
-                showTodayDragonKills(player);
+                showTodayInfo(player);
                 break;
-            case "history":
-            case "기록":
-                showPlayerDragonHistory(player);
+            case "help":
+            case "도움말":
+                showDragonHelp(player);
                 break;
             default:
-                player.sendMessage("§c사용법: /dragon [info|today|history]");
+                showDragonInfo(player);
                 break;
         }
 
@@ -55,66 +60,59 @@ public class DragonCommand implements CommandExecutor {
     }
 
     private void showDragonInfo(Player player) {
-        player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§d§l🐉 드래곤 보상 시스템");
+        long baseReward = plugin.getConfig().getLong("dragon_reward.base_reward", 100000);
+        long minReward = plugin.getConfig().getLong("dragon_reward.min_reward", 10000);
+        double minDamage = plugin.getConfig().getDouble("dragon_reward.min_damage_threshold", 50);
+
+        player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("§e§l🐉 엔더드래곤 보상 시스템");
         player.sendMessage("");
-        player.sendMessage("§7엔더드래곤 처치 시 §6100,000G §7보상!");
-        player.sendMessage("§7• 하루 1회 제한");
-        player.sendMessage("§7• 최소 기여도 필요");
-        player.sendMessage("§7• 기여도에 따라 보상 차등 지급");
+        player.sendMessage("§a§l보상 정보:");
+        player.sendMessage("§7• 기본 보상: §6" + String.format("%,d", baseReward) + "G");
+        player.sendMessage("§7• 최소 보상: §6" + String.format("%,d", minReward) + "G");
+        player.sendMessage("§7• 최소 기여도: §c" + String.format("%.0f", minDamage) + " 피해");
         player.sendMessage("");
-        player.sendMessage("§e명령어:");
-        player.sendMessage("§7/dragon today - 오늘의 처치 기록");
-        player.sendMessage("§7/dragon history - 내 처치 기록");
-        player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
+        player.sendMessage("§e§l보상 계산:");
+        player.sendMessage("§7• 드래곤에게 입힌 피해량에 따라 보상 결정");
+        player.sendMessage("§7• 최소 기여도 미달 시 보상 없음");
+        player.sendMessage("§7• 하루에 1번만 보상 가능");
+        player.sendMessage("");
+        player.sendMessage("§a§l팁:");
+        player.sendMessage("§7• 드래곤과 가까이서 싸울수록 기여도 증가");
+        player.sendMessage("§7• 팀플레이로 안전하게 처치하세요!");
+        player.sendMessage("");
 
-    private void showTodayDragonKills(Player player) {
-        dragonManager.getTodayDragonKills().thenAccept(records -> {
-            player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            player.sendMessage("§d§l📊 오늘의 드래곤 처치 기록");
-
-            if (records.isEmpty()) {
-                player.sendMessage("§7오늘은 아직 드래곤이 처치되지 않았습니다.");
-            } else {
-                player.sendMessage("");
-                for (int i = 0; i < records.size(); i++) {
-                    DragonRewardManager.TodayDragonRecord record = records.get(i);
-                    player.sendMessage(String.format("§e%d. §f%s §7- §6%s G §7(기여도: %d)",
-                            i + 1, record.getPlayerName(),
-                            plugin.getEconomyManager().formatMoney(record.getRewardAmount()),
-                            record.getDamageDealt()));
-                }
-            }
-
-            player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        // 오늘 보상 상태 확인
+        dragonRewardManager.getTodayDragonInfo(player.getUniqueId()).thenAccept(info -> {
+            player.sendMessage("§e§l오늘의 현황:");
+            player.sendMessage("§7" + info);
+            player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         });
     }
 
-    private void showPlayerDragonHistory(Player player) {
-        dragonManager.getPlayerDragonHistory(player.getUniqueId()).thenAccept(records -> {
-            player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            player.sendMessage("§d§l📈 " + player.getName() + "의 드래곤 처치 기록");
+    private void showTodayInfo(Player player) {
+        player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("§e§l오늘의 드래곤 처치 현황");
+        player.sendMessage("");
 
-            if (records.isEmpty()) {
-                player.sendMessage("§7아직 드래곤 처치 기록이 없습니다.");
-                player.sendMessage("§7엔더드래곤을 처치하여 보상을 받아보세요!");
-            } else {
-                player.sendMessage("");
-                for (int i = 0; i < records.size(); i++) {
-                    DragonRewardManager.DragonRecord record = records.get(i);
-                    player.sendMessage(String.format("§e%d. §7%s §f- §6%s G",
-                            i + 1, record.getDate().toString(),
-                            plugin.getEconomyManager().formatMoney(record.getRewardAmount())));
-                }
-
-                long totalReward = records.stream().mapToLong(DragonRewardManager.DragonRecord::getRewardAmount).sum();
-                player.sendMessage("");
-                player.sendMessage("§a총 처치 횟수: §f" + records.size() + "회");
-                player.sendMessage("§a총 획득 보상: §6" + plugin.getEconomyManager().formatMoney(totalReward) + "G");
-            }
-
-            player.sendMessage("§5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        dragonRewardManager.getTodayDragonInfo(player.getUniqueId()).thenAccept(info -> {
+            player.sendMessage(info);
+            player.sendMessage("");
+            player.sendMessage("§7자세한 정보: §e/dragon info");
+            player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         });
+    }
+
+    private void showDragonHelp(Player player) {
+        player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("§e§l드래곤 보상 명령어");
+        player.sendMessage("");
+        player.sendMessage("§7/dragon §f- 드래곤 보상 시스템 정보");
+        player.sendMessage("§7/dragon info §f- 상세 보상 정보");
+        player.sendMessage("§7/dragon today §f- 오늘의 처치 현황");
+        player.sendMessage("");
+        player.sendMessage("§e§l중요:");
+        player.sendMessage("§7드래곤에게 최소 §c50 피해§7를 입혀야 보상을 받을 수 있습니다!");
+        player.sendMessage("§d━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 }

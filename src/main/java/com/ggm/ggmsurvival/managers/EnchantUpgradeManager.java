@@ -3,6 +3,7 @@ package com.ggm.ggmsurvival.managers;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -11,9 +12,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.enchantment.EnchantItemEvent;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.EnchantingInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -33,6 +31,9 @@ public class EnchantUpgradeManager implements Listener {
     // 강화 성공 확률 (레벨별)
     private final Map<Integer, Integer> successRates = new HashMap<>();
 
+    // 강화 시도 중인 플레이어 (중복 방지)
+    private final Set<UUID> upgrading = new HashSet<>();
+
     public EnchantUpgradeManager(GGMSurvival plugin) {
         this.plugin = plugin;
         this.economyManager = plugin.getEconomyManager();
@@ -40,6 +41,8 @@ public class EnchantUpgradeManager implements Listener {
 
         // 강화 비용과 확률 초기화
         initializeUpgradeSettings();
+
+        plugin.getLogger().info("강화 시스템 초기화 완료 - 최대 10강까지 업그레이드 가능");
     }
 
     /**
@@ -70,18 +73,18 @@ public class EnchantUpgradeManager implements Listener {
         successRates.put(9, 30);   // 9강: 30%
         successRates.put(10, 20);  // 10강: 20%
 
-        plugin.getLogger().info("강화 시스템 설정이 로드되었습니다. (최대 10강)");
+        plugin.getLogger().info("강화 시스템 설정이 로드되었습니다 (최대 10강)");
     }
 
     /**
-     * 인첸트 테이블 준비 이벤트
+     * 인챈트 테이블 준비 이벤트 - 강화 정보 표시
      */
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPrepareItemEnchant(PrepareItemEnchantEvent event) {
         Player player = event.getEnchanter();
         ItemStack item = event.getItem();
 
-        if (item == null) return;
+        if (item == null || item.getType() == Material.AIR) return;
 
         // 현재 강화 레벨 확인
         int currentLevel = getUpgradeLevel(item);
@@ -97,34 +100,49 @@ public class EnchantUpgradeManager implements Listener {
         long cost = upgradeCosts.get(nextLevel);
         int successRate = successRates.get(nextLevel);
 
+        // 기본 인챈트 비용 표시 대신 강화 정보 표시
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l강화 정보");
+        player.sendMessage("§e§l⚡ 강화 정보");
+        player.sendMessage("§7아이템: §f" + getItemDisplayName(item));
         player.sendMessage("§7현재 강화: §f" + currentLevel + "강");
         player.sendMessage("§7다음 강화: §f" + nextLevel + "강");
         player.sendMessage("§7필요 비용: §6" + formatMoney(cost) + "G");
         player.sendMessage("§7성공 확률: §a" + successRate + "%");
+        if (nextLevel >= 5) {
+            player.sendMessage("§7실패 시: §c강화 레벨 1 감소");
+        }
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§a인첸트를 클릭하여 강화를 시도하세요!");
+        player.sendMessage("§a인챈트를 클릭하여 강화를 시도하세요!");
     }
 
     /**
-     * 인첸트 이벤트 (실제 강화 처리)
+     * 인챈트 이벤트 (실제 강화 처리) - 스코어보드 업데이트 포함
      */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onEnchantItem(EnchantItemEvent event) {
         Player player = event.getEnchanter();
         ItemStack item = event.getItem();
 
-        if (item == null) return;
+        if (item == null || item.getType() == Material.AIR) return;
 
-        // 기본 인첸트 취소 (우리가 커스텀 강화로 처리)
+        // 기본 인챈트 취소 (우리가 커스텀 강화로 처리)
         event.setCancelled(true);
+
+        // 중복 강화 방지
+        UUID uuid = player.getUniqueId();
+        if (upgrading.contains(uuid)) {
+            player.sendMessage("§c이미 강화를 진행 중입니다!");
+            return;
+        }
+
+        upgrading.add(uuid);
 
         // 현재 강화 레벨 확인
         int currentLevel = getUpgradeLevel(item);
 
         if (currentLevel >= 10) {
             player.sendMessage("§c이미 최대 강화 레벨에 도달했습니다!");
+            upgrading.remove(uuid);
             return;
         }
 
@@ -137,29 +155,47 @@ public class EnchantUpgradeManager implements Listener {
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     player.sendMessage("§c강화 비용이 부족합니다!");
                     player.sendMessage("§7필요: §6" + formatMoney(cost) + "G §7/ 보유: §6" + formatMoney(balance) + "G");
+                    upgrading.remove(uuid);
                 });
                 return;
             }
 
-            // G 차감
-            economyManager.removeMoney(player.getUniqueId(), cost).thenAccept(success -> {
+            // G 차감 (스코어보드 업데이트 포함)
+            economyManager.removeMoney(player.getUniqueId(), player.getName(), cost).thenAccept(success -> {
                 if (!success) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         player.sendMessage("§c강화 비용 차감 중 오류가 발생했습니다!");
+                        upgrading.remove(uuid);
                     });
                     return;
                 }
 
                 Bukkit.getScheduler().runTask(plugin, () -> {
+                    // G 차감 성공 메시지 (ActionBar로 표시)
+                    player.sendActionBar("§c-" + formatMoney(cost) + "G §7(강화 비용)");
+
                     // 강화 시도
                     attemptUpgrade(player, item, nextLevel);
+                    upgrading.remove(uuid);
                 });
+            }).exceptionally(throwable -> {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§c강화 처리 중 오류 발생: " + throwable.getMessage());
+                    upgrading.remove(uuid);
+                });
+                return null;
             });
+        }).exceptionally(throwable -> {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                player.sendMessage("§c잔액 확인 중 오류 발생: " + throwable.getMessage());
+                upgrading.remove(uuid);
+            });
+            return null;
         });
     }
 
     /**
-     * 실제 강화 시도
+     * 실제 강화 시도 - 추가 UI 개선
      */
     private void attemptUpgrade(Player player, ItemStack item, int targetLevel) {
         int successRate = successRates.get(targetLevel);
@@ -172,12 +208,15 @@ public class EnchantUpgradeManager implements Listener {
             player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             player.sendMessage("§a§l✨ 강화 성공! ✨");
             player.sendMessage("§7아이템이 §f" + targetLevel + "강§7으로 강화되었습니다!");
+            player.sendMessage("§a능력이 §6" + (targetLevel * 10) + "%§a 향상되었습니다!");
             player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-            // 성공 효과음
+            // 성공 효과
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-            player.getWorld().spawnParticle(org.bukkit.Particle.VILLAGER_HAPPY,
-                    player.getLocation().add(0, 1, 0), 20);
+            player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation().add(0, 1, 0), 20, 0.5, 0.5, 0.5);
+
+            // ActionBar로 성공 알림
+            player.sendActionBar("§a§l✨ " + targetLevel + "강 달성! ✨");
 
             plugin.getLogger().info(String.format("[강화성공] %s: %s %d강 달성",
                     player.getName(), item.getType(), targetLevel));
@@ -195,16 +234,21 @@ public class EnchantUpgradeManager implements Listener {
                 int newLevel = Math.max(0, currentLevel - 1);
                 applyUpgrade(item, newLevel);
                 player.sendMessage("§c강화 레벨이 " + newLevel + "강으로 하락했습니다!");
+
+                // ActionBar로 하락 알림
+                player.sendActionBar("§c§l💥 " + newLevel + "강으로 하락! 💥");
             } else {
                 player.sendMessage("§7강화 레벨은 하락하지 않습니다.");
+
+                // ActionBar로 실패 알림
+                player.sendActionBar("§c§l💥 강화 실패! (레벨 유지)");
             }
 
             player.sendMessage("§c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-            // 실패 효과음
+            // 실패 효과
             player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 0.5f);
-            player.getWorld().spawnParticle(org.bukkit.Particle.SMOKE_LARGE,
-                    player.getLocation().add(0, 1, 0), 15);
+            player.getWorld().spawnParticle(Particle.SMOKE_LARGE, player.getLocation().add(0, 1, 0), 15, 0.5, 0.5, 0.5);
 
             plugin.getLogger().info(String.format("[강화실패] %s: %s 강화 실패 (%d%%)",
                     player.getName(), item.getType(), successRate));
@@ -223,7 +267,7 @@ public class EnchantUpgradeManager implements Listener {
 
         // 아이템 이름에 강화 표시
         String originalName = meta.hasDisplayName() ? meta.getDisplayName() :
-                "§f" + item.getType().name().toLowerCase().replace("_", " ");
+                "§f" + getItemDisplayName(item);
 
         // 기존 강화 표시 제거
         originalName = originalName.replaceAll("§[0-9a-f]\\[\\+\\d+\\]\\s*", "");
@@ -236,34 +280,38 @@ public class EnchantUpgradeManager implements Listener {
         }
 
         // 로어에 강화 정보 추가
-        List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+        List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
 
         // 기존 강화 로어 제거
-        lore.removeIf(line -> line.contains("강화 레벨") || line.contains("추가 능력"));
+        lore.removeIf(line -> line.contains("강화 레벨") || line.contains("추가 능력") || line.contains("⚡"));
 
         if (level > 0) {
             lore.add("");
             lore.add("§6⚡ 강화 레벨: §f" + level + "강");
             lore.add("§7추가 능력: §a+" + (level * 10) + "%");
+            lore.add("§7강화 시스템으로 업그레이드됨");
         }
 
         meta.setLore(lore);
 
-        // 강화 레벨에 따른 실제 인첸트 적용
-        applyEnchantmentsByLevel(meta, level);
+        // 강화 레벨에 따른 실제 인챈트 적용
+        applyEnchantmentsByLevel(meta, level, item.getType());
 
         item.setItemMeta(meta);
     }
 
     /**
-     * 강화 레벨에 따른 인첸트 적용
+     * 강화 레벨에 따른 인챈트 적용 - 수정된 버전 (올바른 상수 사용)
      */
-    private void applyEnchantmentsByLevel(ItemMeta meta, int level) {
-        // 기존 인첸트 제거 (강화 관련만)
+    private void applyEnchantmentsByLevel(ItemMeta meta, int level, Material material) {
+        // 기존 강화 관련 인챈트 제거
         Set<Enchantment> toRemove = new HashSet<>();
         for (Enchantment ench : meta.getEnchants().keySet()) {
+            // 올바른 인챈트 상수 사용
             if (ench == Enchantment.DAMAGE_ALL || ench == Enchantment.PROTECTION_ENVIRONMENTAL ||
-                    ench == Enchantment.DIG_SPEED || ench == Enchantment.ARROW_DAMAGE) {
+                    ench == Enchantment.DIG_SPEED || ench == Enchantment.ARROW_DAMAGE ||
+                    ench == Enchantment.FIRE_ASPECT || ench == Enchantment.ARROW_FIRE ||
+                    ench == Enchantment.DURABILITY) {
                 toRemove.add(ench);
             }
         }
@@ -271,111 +319,186 @@ public class EnchantUpgradeManager implements Listener {
 
         if (level <= 0) return;
 
-        // 아이템 타입에 따른 인첸트 적용
-        Material material = meta.hasDisplayName() ?
-                Material.DIAMOND_SWORD : Material.DIAMOND_SWORD; // 임시
+        // 아이템 타입에 따른 인챈트 적용
+        String materialName = material.name();
 
-        String typeName = material.name();
-
-        if (typeName.contains("SWORD")) {
-            // 검 - 날카로움
-            meta.addEnchant(Enchantment.DAMAGE_ALL, Math.min(level, 5), true);
-        } else if (typeName.contains("PICKAXE") || typeName.contains("AXE") || typeName.contains("SHOVEL")) {
-            // 도구 - 효율성
-            meta.addEnchant(Enchantment.DIG_SPEED, Math.min(level, 5), true);
-        } else if (typeName.contains("BOW")) {
-            // 활 - 힘
-            meta.addEnchant(Enchantment.ARROW_DAMAGE, Math.min(level, 5), true);
-        } else if (typeName.contains("HELMET") || typeName.contains("CHESTPLATE") ||
-                typeName.contains("LEGGINGS") || typeName.contains("BOOTS")) {
-            // 방어구 - 보호
-            meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, Math.min(level, 4), true);
+        if (materialName.contains("SWORD")) {
+            // 검: 날카로움 (DAMAGE_ALL = SHARPNESS)
+            int enchantLevel = Math.min(level, 5); // 최대 5레벨
+            meta.addEnchant(Enchantment.DAMAGE_ALL, enchantLevel, true);
+        } else if (materialName.contains("PICKAXE") || materialName.contains("AXE") ||
+                materialName.contains("SHOVEL") || materialName.contains("HOE")) {
+            // 도구: 효율성 (DIG_SPEED = EFFICIENCY)
+            int enchantLevel = Math.min(level, 5);
+            meta.addEnchant(Enchantment.DIG_SPEED, enchantLevel, true);
+        } else if (materialName.contains("BOW")) {
+            // 활: 힘 (ARROW_DAMAGE = POWER)
+            int enchantLevel = Math.min(level, 5);
+            meta.addEnchant(Enchantment.ARROW_DAMAGE, enchantLevel, true);
+        } else if (materialName.contains("HELMET") || materialName.contains("CHESTPLATE") ||
+                materialName.contains("LEGGINGS") || materialName.contains("BOOTS")) {
+            // 방어구: 보호
+            int enchantLevel = Math.min(level, 4);
+            meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, enchantLevel, true);
         }
 
-        // 높은 강화 레벨일수록 추가 인첸트
+        // 높은 강화 레벨에서 추가 인챈트
         if (level >= 5) {
-            meta.addEnchant(Enchantment.DURABILITY, Math.min(level - 2, 3), true);
+            if (materialName.contains("SWORD")) {
+                meta.addEnchant(Enchantment.FIRE_ASPECT, 1, true);
+            } else if (materialName.contains("BOW")) {
+                meta.addEnchant(Enchantment.ARROW_FIRE, 1, true);
+            }
         }
 
         if (level >= 8) {
-            meta.addEnchant(Enchantment.MENDING, 1, true);
+            // 내구성 (DURABILITY = UNBREAKING)
+            meta.addEnchant(Enchantment.DURABILITY, 3, true);
         }
     }
 
     /**
-     * 강화 레벨 색상 반환
+     * 강화 레벨에 따른 색상
      */
     private String getUpgradeColor(int level) {
-        if (level >= 10) return "§d"; // 보라색 (10강)
-        if (level >= 7) return "§6";  // 금색 (7~9강)
-        if (level >= 4) return "§e";  // 노란색 (4~6강)
-        if (level >= 1) return "§a";  // 초록색 (1~3강)
-        return "§f";                   // 흰색 (0강)
+        if (level <= 3) return "§a"; // 초록
+        else if (level <= 6) return "§b"; // 하늘색
+        else if (level <= 8) return "§d"; // 분홍
+        else return "§6"; // 금색
     }
 
     /**
-     * 아이템의 강화 레벨 조회
+     * 강화 레벨 가져오기
      */
-    public int getUpgradeLevel(ItemStack item) {
+    private int getUpgradeLevel(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return 0;
 
         ItemMeta meta = item.getItemMeta();
+        if (meta == null) return 0;
+
         return meta.getPersistentDataContainer().getOrDefault(upgradeKey, PersistentDataType.INTEGER, 0);
     }
 
     /**
-     * 강화 비용 조회
+     * 아이템 표시 이름 가져오기
      */
-    public long getUpgradeCost(int level) {
-        return upgradeCosts.getOrDefault(level, 0L);
+    private String getItemDisplayName(ItemStack item) {
+        String name = item.getType().name().toLowerCase().replace("_", " ");
+        String[] words = name.split(" ");
+        StringBuilder result = new StringBuilder();
+
+        for (String word : words) {
+            if (result.length() > 0) result.append(" ");
+            result.append(Character.toUpperCase(word.charAt(0)));
+            if (word.length() > 1) {
+                result.append(word.substring(1));
+            }
+        }
+
+        return result.toString();
     }
 
     /**
-     * 강화 성공 확률 조회
-     */
-    public int getSuccessRate(int level) {
-        return successRates.getOrDefault(level, 0);
-    }
-
-    /**
-     * 금액 포맷팅
+     * 돈 포맷팅
      */
     private String formatMoney(long amount) {
         return String.format("%,d", amount);
     }
 
     /**
-     * 강화 정보 표시
+     * 강화 정보 명령어 (추가 기능)
      */
     public void showUpgradeInfo(Player player, ItemStack item) {
-        if (item == null) {
-            player.sendMessage("§c손에 아이템을 들어주세요!");
+        if (item == null || item.getType() == Material.AIR) {
+            player.sendMessage("§c강화할 아이템을 손에 들고 사용하세요!");
             return;
         }
 
         int currentLevel = getUpgradeLevel(item);
 
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l강화 정보");
-        player.sendMessage("§7아이템: §f" + item.getType().name());
+        player.sendMessage("§e§l⚡ 아이템 강화 정보");
+        player.sendMessage("");
+        player.sendMessage("§7아이템: §f" + getItemDisplayName(item));
         player.sendMessage("§7현재 강화: §f" + currentLevel + "강");
 
         if (currentLevel < 10) {
             int nextLevel = currentLevel + 1;
-            long cost = getUpgradeCost(nextLevel);
-            int successRate = getSuccessRate(nextLevel);
+            long cost = upgradeCosts.get(nextLevel);
+            int successRate = successRates.get(nextLevel);
 
             player.sendMessage("§7다음 강화: §f" + nextLevel + "강");
             player.sendMessage("§7필요 비용: §6" + formatMoney(cost) + "G");
             player.sendMessage("§7성공 확률: §a" + successRate + "%");
 
-            if (nextLevel > 5) {
-                player.sendMessage("§c※ 실패 시 강화 레벨이 1 감소합니다!");
+            if (nextLevel >= 5) {
+                player.sendMessage("§7실패 시: §c강화 레벨 1 감소");
             }
+
+            player.sendMessage("");
+            player.sendMessage("§a인챈트 테이블에서 강화하세요!");
         } else {
-            player.sendMessage("§d최대 강화 레벨에 도달했습니다!");
+            player.sendMessage("§a이미 최대 강화 레벨입니다!");
         }
 
         player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    /**
+     * 강화 가격표 표시
+     */
+    public void showUpgradeRates(Player player) {
+        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("§e§l⚡ 강화 시스템 정보");
+        player.sendMessage("");
+        player.sendMessage("§a강화 비용 및 확률:");
+
+        for (int i = 1; i <= 10; i++) {
+            long cost = upgradeCosts.get(i);
+            int rate = successRates.get(i);
+            String color = i <= 3 ? "§a" : i <= 6 ? "§e" : i <= 8 ? "§c" : "§4";
+
+            player.sendMessage(color + i + "강§7: " + formatMoney(cost) + "G (§a" + rate + "%§7)");
+        }
+
+        player.sendMessage("");
+        player.sendMessage("§c주의사항:");
+        player.sendMessage("§7• 5강 이상 실패 시 강화 레벨 감소");
+        player.sendMessage("§7• 강화 레벨에 따라 인챈트 자동 적용");
+        player.sendMessage("§7• 인챈트 테이블에 아이템 올리고 클릭!");
+        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    /**
+     * 드래곤 보상 지급 시 스코어보드 업데이트를 위한 메서드
+     */
+    public void giveDragonReward(Player player, long amount) {
+        economyManager.addMoney(player.getUniqueId(), player.getName(), amount).thenAccept(success -> {
+            if (success) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§6§l🐉 드래곤 토벌 보상: §a+" + formatMoney(amount) + "G");
+                    player.sendActionBar("§6🐉 +§a" + formatMoney(amount) + "G §7(드래곤 보상)");
+                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 0.8f);
+                });
+            }
+        });
+    }
+
+    /**
+     * NPC 교환 시 스코어보드 업데이트를 위한 메서드
+     */
+    public void processNPCTrade(Player player, long cost, String itemName) {
+        economyManager.removeMoney(player.getUniqueId(), player.getName(), cost).thenAccept(success -> {
+            if (success) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§a교환 완료: §f" + itemName + " §7(§6-" + formatMoney(cost) + "G§7)");
+                    player.sendActionBar("§c-" + formatMoney(cost) + "G §7(" + itemName + " 구매)");
+                });
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§cG가 부족합니다! §7필요: " + formatMoney(cost) + "G");
+                });
+            }
+        });
     }
 }

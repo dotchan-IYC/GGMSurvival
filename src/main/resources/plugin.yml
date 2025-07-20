@@ -16,19 +16,19 @@ commands:
     permission: ggm.job
 
   upgrade:
-    description: 아이템 강화 정보
-    usage: /upgrade [info|guide|rates|costs]
+    description: 아이템 강화 시스템
+    usage: /upgrade [info|guide|rates]
     aliases: [강화, enhance]
     permission: ggm.upgrade
 
   npc:
     description: NPC 교환상 관리 (OP 전용)
-    usage: /npc <create|remove|list> [이름]
+    usage: /npc <create|remove|list> [타입]
     permission: ggm.npc.admin
 
   trade:
     description: NPC와 아이템 교환
-    usage: /trade
+    usage: /trade [prices|merchants]
     aliases: [교환]
     permission: ggm.trade
 
