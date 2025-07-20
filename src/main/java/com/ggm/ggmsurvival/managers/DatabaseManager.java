@@ -1,9 +1,11 @@
 package com.ggm.ggmsurvival.managers;
 
-import org.bukkit.configuration.file.FileConfiguration;
 import com.ggm.ggmsurvival.GGMSurvival;
-
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.concurrent.CompletableFuture;
 
 public class DatabaseManager {
 
@@ -13,69 +15,121 @@ public class DatabaseManager {
     private final String database;
     private final String username;
     private final String password;
-    private final String connectionUrl;
 
     public DatabaseManager(GGMSurvival plugin) {
         this.plugin = plugin;
-        FileConfiguration config = plugin.getConfig();
+        this.host = plugin.getConfig().getString("database.host", "localhost");
+        this.port = plugin.getConfig().getInt("database.port", 3306);
+        this.database = plugin.getConfig().getString("database.database", "ggm_server");
+        this.username = plugin.getConfig().getString("database.username", "root");
+        this.password = plugin.getConfig().getString("database.password", "1224");
 
-        this.host = config.getString("database.host", "localhost");
-        this.port = config.getInt("database.port", 3306);
-        this.database = config.getString("database.database", "ggm_server");
-        this.username = config.getString("database.username", "root");
-        this.password = config.getString("database.password", "password");
-
-        // 연결 URL 생성
-        this.connectionUrl = "jdbc:mysql://" + host + ":" + port + "/" + database +
-                "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" +
-                "&autoReconnect=true&useUnicode=true&characterEncoding=utf8";
-
-        // 초기 연결 테스트
+        // 데이터베이스 연결 테스트
         testConnection();
+
+        // 기본 테이블 생성
+        createTables();
     }
 
     /**
-     * 새 데이터베이스 연결 생성
+     * 새로운 데이터베이스 연결 생성
      */
-    public Connection getConnection() throws SQLException {
+    private Connection createConnection() throws SQLException {
         try {
-            Connection conn = DriverManager.getConnection(connectionUrl, username, password);
-            plugin.getLogger().finest("새 데이터베이스 연결이 생성되었습니다.");
-            return conn;
-        } catch (SQLException e) {
-            plugin.getLogger().severe("데이터베이스 연결 실패: " + e.getMessage());
-            throw e;
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException e) {
+            plugin.getLogger().severe("MySQL JDBC 드라이버를 찾을 수 없습니다!");
+            throw new SQLException("MySQL JDBC 드라이버 없음", e);
         }
+
+        String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&autoReconnect=true",
+                host, port, database);
+
+        Connection conn = DriverManager.getConnection(url, username, password);
+        return conn;
     }
 
     /**
      * 연결 테스트
      */
     private void testConnection() {
-        try (Connection conn = getConnection()) {
+        try (Connection conn = createConnection()) {
             plugin.getLogger().info("데이터베이스에 성공적으로 연결되었습니다.");
-            plugin.getLogger().info("데이터베이스: " + database + " (호스트: " + host + ":" + port + ")");
         } catch (SQLException e) {
             plugin.getLogger().severe("데이터베이스 연결 테스트 실패: " + e.getMessage());
-            plugin.getLogger().severe("야생 서버의 일부 기능이 제한될 수 있습니다.");
+            e.printStackTrace();
         }
     }
 
     /**
-     * 연결 종료
+     * 기본 테이블 생성
      */
-    public void closeConnection() {
-        plugin.getLogger().info("데이터베이스 매니저가 종료되었습니다.");
+    private void createTables() {
+        try (Connection conn = createConnection()) {
+            // 플레이어 경제 테이블 (GGMCore와 공유)
+            String economyTable = """
+                CREATE TABLE IF NOT EXISTS ggm_economy (
+                    uuid VARCHAR(36) PRIMARY KEY,
+                    player_name VARCHAR(16) NOT NULL,
+                    balance BIGINT NOT NULL DEFAULT 1000,
+                    last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """;
+
+            executeUpdate(conn, economyTable);
+            plugin.getLogger().info("데이터베이스 테이블이 준비되었습니다.");
+
+        } catch (SQLException e) {
+            plugin.getLogger().severe("테이블 생성 실패: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**
-     * 데이터베이스 정보 출력
+     * 데이터베이스 연결 반환 (매번 새 연결)
      */
-    public void printDatabaseInfo() {
-        plugin.getLogger().info("=== 데이터베이스 정보 ===");
-        plugin.getLogger().info("호스트: " + host + ":" + port);
-        plugin.getLogger().info("데이터베이스: " + database);
-        plugin.getLogger().info("사용자: " + username);
-        plugin.getLogger().info("==================");
+    public Connection getConnection() throws SQLException {
+        return createConnection();
+    }
+
+    /**
+     * SQL 업데이트 실행
+     */
+    private void executeUpdate(Connection conn, String sql) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.executeUpdate();
+        }
+    }
+
+    /**
+     * 플레이어 데이터 생성 또는 업데이트
+     */
+    public CompletableFuture<Void> createOrUpdatePlayer(java.util.UUID uuid, String playerName) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = createConnection()) {
+                String sql = """
+                    INSERT INTO ggm_economy (uuid, player_name, balance) 
+                    VALUES (?, ?, 1000) 
+                    ON DUPLICATE KEY UPDATE 
+                    player_name = VALUES(player_name),
+                    last_login = CURRENT_TIMESTAMP
+                    """;
+
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, uuid.toString());
+                    stmt.setString(2, playerName);
+                    stmt.executeUpdate();
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("플레이어 데이터 생성/업데이트 실패: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * 연결 정리
+     */
+    public void closeConnection() {
+        plugin.getLogger().info("데이터베이스 연결이 정리되었습니다.");
     }
 }
