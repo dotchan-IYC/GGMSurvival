@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.ggm.survival'
-version = 'survival-06(ender)'
+version = '2.0-NEW-PATCH(Update)'
 
 repositories {
     mavenCentral()

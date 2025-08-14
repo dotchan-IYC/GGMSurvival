@@ -14,25 +14,30 @@ public class NPCCommand implements CommandExecutor {
 
     public NPCCommand(GGMSurvival plugin) {
         this.plugin = plugin;
-        this.npcTradeManager = plugin.getNPCTradeManager();
+        this.npcTradeManager = plugin.getNPCTradeManager(); // 정확한 메서드명
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("§c이 명령어는 플레이어만 사용할 수 있습니다.");
+            sender.sendMessage("이 명령어는 플레이어만 사용할 수 있습니다.");
             return true;
         }
 
         Player player = (Player) sender;
 
         if (!player.hasPermission("ggm.npc.admin")) {
-            player.sendMessage("§c권한이 없습니다.");
+            player.sendMessage("권한이 없습니다!");
+            return true;
+        }
+
+        if (!plugin.isFeatureEnabled("npc_trading")) {
+            player.sendMessage("NPC 교환은 야생 서버에서만 사용할 수 있습니다!");
             return true;
         }
 
         if (args.length == 0) {
-            showNPCHelp(player);
+            sendHelp(player);
             return true;
         }
 
@@ -42,32 +47,49 @@ public class NPCCommand implements CommandExecutor {
             case "create":
             case "생성":
                 if (args.length < 3) {
-                    player.sendMessage("§c사용법: /npc create <이름> <타입>");
-                    player.sendMessage("§7타입: mining, combat, farming, rare, building, redstone");
+                    player.sendMessage("사용법: /npc create <이름> <타입>");
+                    showNPCTypes(player);
                     return true;
                 }
                 createNPC(player, args[1], args[2]);
                 break;
+
+            case "remove":
+            case "삭제":
+                removeNPC(player);
+                break;
+
             case "list":
             case "목록":
                 showNPCTypes(player);
                 break;
+
             case "info":
             case "정보":
                 showNPCInfo(player);
                 break;
+
             default:
-                showNPCHelp(player);
+                sendHelp(player);
                 break;
         }
 
         return true;
     }
 
-    private void createNPC(Player player, String npcName, String typeStr) {
-        NPCTradeManager.TradeType tradeType;
+    private void sendHelp(Player player) {
+        player.sendMessage("=== NPC 관리 명령어 ===");
+        player.sendMessage("/npc create <이름> <타입> - NPC 생성");
+        player.sendMessage("/npc remove - 바라보는 NPC 삭제");
+        player.sendMessage("/npc list - 사용 가능한 NPC 타입");
+        player.sendMessage("/npc info - NPC 시스템 정보");
+        player.sendMessage("=====================");
+    }
 
+    private void createNPC(Player player, String npcName, String typeStr) {
         try {
+            NPCTradeManager.TradeType tradeType;
+
             switch (typeStr.toLowerCase()) {
                 case "mining":
                 case "광물":
@@ -94,71 +116,63 @@ public class NPCCommand implements CommandExecutor {
                     tradeType = NPCTradeManager.TradeType.REDSTONE;
                     break;
                 default:
-                    player.sendMessage("§c알 수 없는 NPC 타입입니다.");
-                    player.sendMessage("§7사용 가능한 타입: mining, combat, farming, rare, building, redstone");
+                    player.sendMessage("알 수 없는 NPC 타입입니다: " + typeStr);
+                    player.sendMessage("사용 가능한 타입: mining, combat, farming, rare, building, redstone");
                     return;
             }
 
-            // 수정된 메소드 호출 - npcName 매개변수 추가
+            // NPC 생성 (기존 메서드 호출)
             npcTradeManager.createTradeNPC(player, npcName, tradeType);
 
         } catch (Exception e) {
-            player.sendMessage("§cNPC 생성 중 오류가 발생했습니다: " + e.getMessage());
+            player.sendMessage("NPC 생성 중 오류가 발생했습니다: " + e.getMessage());
             plugin.getLogger().severe("NPC 생성 오류: " + e.getMessage());
         }
     }
 
+    private void removeNPC(Player player) {
+        player.sendMessage("[NPC] 바라보는 NPC를 삭제하려면 우클릭하세요.");
+        player.sendMessage("(아직 구현되지 않은 기능입니다.)");
+    }
+
     private void showNPCTypes(Player player) {
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l사용 가능한 NPC 타입");
+        player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("사용 가능한 NPC 타입");
         player.sendMessage("");
-        player.sendMessage("§6mining §7- 광물 상인 (광물, 원석)");
-        player.sendMessage("§ccombat §7- 전투 상인 (몬스터 드롭)");
-        player.sendMessage("§afarming §7- 농업 상인 (농작물, 동물 재료)");
-        player.sendMessage("§5rare §7- 희귀 상인 (희귀 아이템)");
-        player.sendMessage("§bbuilding §7- 건축 상인 (건축 재료)");
-        player.sendMessage("§4redstone §7- 레드스톤 상인 (레드스톤 부품)");
+        player.sendMessage("mining - 광물 상인 (광물, 원석)");
+        player.sendMessage("combat - 전투 상인 (몬스터 드롭)");
+        player.sendMessage("farming - 농업 상인 (농작물, 동물 재료)");
+        player.sendMessage("rare - 희귀 상인 (희귀 아이템)");
+        player.sendMessage("building - 건축 상인 (건축 재료)");
+        player.sendMessage("redstone - 레드스톤 상인 (레드스톤 부품)");
         player.sendMessage("");
-        player.sendMessage("§7사용법: §e/npc create <이름> <타입>");
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("사용법: /npc create <이름> <타입>");
+        player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
     private void showNPCInfo(Player player) {
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§lNPC 교환 시스템 정보");
+        player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("NPC 교환 시스템 정보");
         player.sendMessage("");
-        player.sendMessage("§a테마별 전문 상인들이 다양한 아이템을 구매합니다:");
+        player.sendMessage("테마별 전문 상인들이 다양한 아이템을 구매합니다:");
         player.sendMessage("");
-        player.sendMessage("§6§l광물 상인:");
-        player.sendMessage("§7석탄, 철, 금, 다이아몬드, 에메랄드 등 모든 광물");
+        player.sendMessage("광물 상인:");
+        player.sendMessage("석탄, 철, 금, 다이아몬드, 에메랄드 등 모든 광물");
         player.sendMessage("");
-        player.sendMessage("§c§l전투 상인:");
-        player.sendMessage("§7화약, 뼈, 엔더 진주, 블레이즈 막대 등 몬스터 드롭");
+        player.sendMessage("전투 상인:");
+        player.sendMessage("화약, 뼈, 엔더 진주, 블레이즈 막대 등 몬스터 드롭");
         player.sendMessage("");
-        player.sendMessage("§a§l농업 상인:");
-        player.sendMessage("§7밀, 당근, 감자, 고기, 가죽 등 농업 관련 아이템");
+        player.sendMessage("농업 상인:");
+        player.sendMessage("밀, 당근, 감자, 고기, 가죽 등 농업 관련 아이템");
         player.sendMessage("");
-        player.sendMessage("§5§l희귀 상인:");
-        player.sendMessage("§7네더의 별, 드래곤 알, 엘리트라 등 최고급 아이템");
+        player.sendMessage("희귀 상인:");
+        player.sendMessage("네더의 별, 드래곤 알, 엘리트라 등 최고급 아이템");
         player.sendMessage("");
-        player.sendMessage("§b§l건축 상인:");
-        player.sendMessage("§7돌, 원목, 벽돌, 유리 등 건축 재료");
+        player.sendMessage("건축 상인:");
+        player.sendMessage("돌, 원목, 벽돌, 유리 등 건축 재료");
         player.sendMessage("");
-        player.sendMessage("§4§l레드스톤 상인:");
-        player.sendMessage("§7레드스톤, 피스톤, 호퍼 등 기계 부품");
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
-
-    private void showNPCHelp(Player player) {
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§lNPC 관리 명령어");
-        player.sendMessage("");
-        player.sendMessage("§7/npc create <이름> <타입> §f- NPC 생성");
-        player.sendMessage("§7/npc list §f- 사용 가능한 NPC 타입 목록");
-        player.sendMessage("§7/npc info §f- NPC 시스템 정보");
-        player.sendMessage("");
-        player.sendMessage("§e§l참고:");
-        player.sendMessage("§7생성된 NPC를 우클릭하여 교환소를 이용하세요!");
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("레드스톤 상인:");
+        player.sendMessage("레드스톤, 피스톤, 호퍼 등 기계 부품");
+        player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 }

@@ -7,6 +7,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -27,29 +29,50 @@ public class EnderResetManager {
     private int resetHour;
     private int resetMinute;
 
+    // 엔드시티 차단 설정
+    private boolean blockEndCities;
+    private int endCityMinDistance;
+    private String targetServerName;
+
     public EnderResetManager(GGMSurvival plugin) {
         this.plugin = plugin;
 
-        // 설정에서 리셋 시간 로드
-        loadResetTime();
+        // 설정 로드
+        loadResetSettings();
 
         // 자동 리셋 스케줄러 시작
         startResetScheduler();
 
-        plugin.getLogger().info("엔더 자동 초기화 시스템 활성화 - 매일 " +
-                String.format("%02d:%02d", resetHour, resetMinute) + "에 리셋");
+        // BungeeCord 채널 등록
+        registerBungeeChannel();
+
+        plugin.getLogger().info("엔더 자동 초기화 시스템 활성화");
+        plugin.getLogger().info("• 리셋 시간: 매일 " + String.format("%02d:%02d", resetHour, resetMinute));
+        plugin.getLogger().info("• 엔드시티 차단: " + (blockEndCities ? "활성화" : "비활성화"));
+        plugin.getLogger().info("• 이동 대상 서버: " + targetServerName);
     }
 
     /**
-     * 설정에서 리셋 시간 로드
+     * 설정 로드
      */
-    private void loadResetTime() {
+    private void loadResetSettings() {
         resetHour = plugin.getConfig().getInt("ender_reset.hour", 12);
         resetMinute = plugin.getConfig().getInt("ender_reset.minute", 0);
+        blockEndCities = plugin.getConfig().getBoolean("ender_reset.block_end_cities", true);
+        endCityMinDistance = plugin.getConfig().getInt("ender_reset.end_city_min_distance", 1000);
+        targetServerName = plugin.getConfig().getString("ender_reset.target_server", "survival");
 
         // 유효성 검사
         if (resetHour < 0 || resetHour > 23) resetHour = 12;
         if (resetMinute < 0 || resetMinute > 59) resetMinute = 0;
+        if (endCityMinDistance < 500) endCityMinDistance = 1000;
+    }
+
+    /**
+     * BungeeCord 채널 등록
+     */
+    private void registerBungeeChannel() {
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, "BungeeCord");
     }
 
     /**
@@ -106,21 +129,21 @@ public class EnderResetManager {
      * 예고 알림 메시지 전송
      */
     private void sendWarningMessage(int minutes) {
-        String message = String.format("§c§l[엔더 리셋] §f%d분 후 엔드 차원이 초기화됩니다!", minutes);
-        String subMessage = "§7엔드에 있는 모든 플레이어는 자동으로 이동됩니다.";
+        String message = String.format("[엔더 리셋] %d분 후 엔드 차원이 초기화됩니다!", minutes);
+        String subMessage = "엔드에 있는 모든 플레이어는 " + targetServerName + " 서버로 자동 이동됩니다.";
 
         // 모든 플레이어에게 알림
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.sendMessage("§c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             player.sendMessage(message);
             player.sendMessage(subMessage);
-            player.sendMessage("§c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
             // 경고음
             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.8f, 1.0f);
 
             // ActionBar로도 표시
-            player.sendActionBar("§c⚠ 엔더 리셋 " + minutes + "분 전! ⚠");
+            player.sendActionBar("엔더 리셋 " + minutes + "분 전!");
         }
 
         // 콘솔 로그
@@ -161,19 +184,86 @@ public class EnderResetManager {
             return;
         }
 
-        // 플레이어들을 스폰 지점으로 이동
-        World spawnWorld = Bukkit.getWorld("world"); // 기본 월드
-        Location spawnLocation = spawnWorld != null ? spawnWorld.getSpawnLocation() :
-                Bukkit.getWorlds().get(0).getSpawnLocation();
-
+        // 플레이어들을 다른 서버로 이동
         for (Player player : endPlayers) {
-            player.teleport(spawnLocation);
-            player.sendMessage("§6§l[엔더 리셋] §a안전한 곳으로 이동되었습니다!");
-            player.sendMessage("§7엔드 차원이 초기화되어 새로운 드래곤과 함께 돌아올 예정입니다.");
+            sendPlayerToServer(player, targetServerName);
+            player.sendMessage("[엔더 리셋] " + targetServerName + " 서버로 안전하게 이동되었습니다!");
+            player.sendMessage("엔드 차원이 초기화되어 새로운 드래곤과 함께 돌아올 예정입니다.");
             player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
         }
 
-        plugin.getLogger().info(endPlayers.size() + "명의 플레이어를 엔드에서 이동시켰습니다");
+        plugin.getLogger().info(endPlayers.size() + "명의 플레이어를 " + targetServerName + " 서버로 이동시켰습니다");
+    }
+
+    /**
+     * 플레이어를 다른 서버로 이동
+     */
+    private void sendPlayerToServer(Player player, String serverName) {
+        try {
+            ByteArrayOutputStream b = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(b);
+
+            out.writeUTF("Connect");
+            out.writeUTF(serverName);
+
+            player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
+
+        } catch (Exception e) {
+            plugin.getLogger().warning("플레이어 서버 이동 실패 (" + player.getName() + "): " + e.getMessage());
+
+            // BungeeCord 연동 실패 시 기본 월드로 이동
+            World spawnWorld = Bukkit.getWorld("world");
+            if (spawnWorld != null) {
+                player.teleport(spawnWorld.getSpawnLocation());
+            }
+        }
+    }
+
+    /**
+     * 엔드시티 접근 차단 확인
+     */
+    public boolean isInEndCityArea(Location location) {
+        if (!blockEndCities) return false;
+
+        World world = location.getWorld();
+        if (world == null || world.getEnvironment() != World.Environment.THE_END) {
+            return false;
+        }
+
+        // 엔드시티는 보통 (1000, 1000) 이상의 좌표에 생성됨
+        int x = Math.abs(location.getBlockX());
+        int z = Math.abs(location.getBlockZ());
+
+        return x >= endCityMinDistance || z >= endCityMinDistance;
+    }
+
+    /**
+     * 엔드시티 지역에서 플레이어 추방
+     */
+    public void kickFromEndCity(Player player) {
+        World endWorld = getEndWorld();
+        if (endWorld == null) return;
+
+        // 엔드 메인 섬으로 텔레포트 (0, 64, 0 근처)
+        Location safeLocation = new Location(endWorld, 0, 64, 0);
+
+        // 안전한 위치 찾기
+        for (int y = 50; y <= 100; y++) {
+            Location checkLoc = new Location(endWorld, 0, y, 0);
+            if (checkLoc.getBlock().getType() == Material.AIR &&
+                    checkLoc.clone().add(0, 1, 0).getBlock().getType() == Material.AIR) {
+                safeLocation = checkLoc;
+                break;
+            }
+        }
+
+        player.teleport(safeLocation);
+        player.sendMessage("[엔드시티 차단] 엔드시티 지역은 접근이 제한됩니다!");
+        player.sendMessage("드래곤을 처치하고 메인 엔드 지역을 탐험해보세요.");
+        player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.8f);
+
+        // 경고 이펙트
+        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1, 0), 30, 0.5, 1, 0.5, 0.1);
     }
 
     /**
@@ -190,7 +280,7 @@ public class EnderResetManager {
             plugin.getLogger().info("엔드 차원 리셋 중...");
 
             // 모든 플레이어에게 리셋 시작 알림
-            broadcastResetMessage("§e§l[엔더 리셋] §f엔드 차원 초기화 중...");
+            broadcastResetMessage("[엔더 리셋] 엔드 차원 초기화 중...");
 
             // 엔드 월드 언로드
             boolean unloaded = Bukkit.getServer().unloadWorld(endWorld, false);
@@ -205,7 +295,7 @@ public class EnderResetManager {
                 }, 100L);
             } else {
                 plugin.getLogger().severe("엔드 월드 언로드 실패!");
-                broadcastResetMessage("§c§l[엔더 리셋] §f리셋 실패! 관리자에게 문의하세요.");
+                broadcastResetMessage("[엔더 리셋] 리셋 실패! 관리자에게 문의하세요.");
             }
 
         } catch (Exception e) {
@@ -316,15 +406,15 @@ public class EnderResetManager {
      */
     private void broadcastResetComplete() {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            player.sendMessage("§a§l✅ 엔드 차원 초기화 완료!");
-            player.sendMessage("§f새로운 엔더 드래곤이 기다리고 있습니다!");
-            player.sendMessage("§e드래곤을 처치하고 풍성한 보상을 받아보세요!");
-            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            player.sendMessage("엔드 차원 초기화 완료!");
+            player.sendMessage("새로운 엔더 드래곤이 기다리고 있습니다!");
+            player.sendMessage("드래곤을 처치하고 풍성한 보상을 받아보세요!");
+            player.sendMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
             // 완료 효과음
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-            player.sendActionBar("§a✨ 엔드 차원 리셋 완료! 새로운 모험이 시작됩니다! ✨");
+            player.sendActionBar("엔드 차원 리셋 완료! 새로운 모험이 시작됩니다!");
         }
     }
 
@@ -335,13 +425,13 @@ public class EnderResetManager {
         plugin.getLogger().info(admin.getName() + "이(가) 수동으로 엔드 리셋을 실행했습니다");
 
         // 관리자에게 확인 메시지
-        admin.sendMessage("§6[엔더 리셋] §a수동 리셋을 시작합니다...");
+        admin.sendMessage("[엔더 리셋] 수동 리셋을 시작합니다...");
 
         // 모든 플레이어에게 알림
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!player.equals(admin)) {
-                player.sendMessage("§c§l[긴급 알림] §f관리자에 의해 엔드 차원이 곧 초기화됩니다!");
-                player.sendActionBar("§c⚠ 관리자 수동 리셋 진행 중 ⚠");
+                player.sendMessage("[긴급 알림] 관리자에 의해 엔드 차원이 곧 초기화됩니다!");
+                player.sendActionBar("관리자 수동 리셋 진행 중");
             }
         }
 
@@ -372,6 +462,39 @@ public class EnderResetManager {
     }
 
     /**
+     * 리셋 시간 변경
+     */
+    public void setResetTime(int hour, int minute) {
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            throw new IllegalArgumentException("잘못된 시간 형식입니다. (시간: 0-23, 분: 0-59)");
+        }
+
+        this.resetHour = hour;
+        this.resetMinute = minute;
+
+        // 설정 파일에 저장
+        plugin.getConfig().set("ender_reset.hour", hour);
+        plugin.getConfig().set("ender_reset.minute", minute);
+        plugin.saveConfig();
+
+        // 스케줄러 재시작
+        startResetScheduler();
+
+        plugin.getLogger().info("엔더 리셋 시간이 " + String.format("%02d:%02d", hour, minute) + "로 변경되었습니다");
+    }
+
+    /**
+     * 엔드시티 차단 설정 변경
+     */
+    public void setEndCityBlocking(boolean enabled) {
+        this.blockEndCities = enabled;
+        plugin.getConfig().set("ender_reset.block_end_cities", enabled);
+        plugin.saveConfig();
+
+        plugin.getLogger().info("엔드시티 차단이 " + (enabled ? "활성화" : "비활성화") + "되었습니다");
+    }
+
+    /**
      * 스케줄러 정리
      */
     public void shutdown() {
@@ -383,4 +506,10 @@ public class EnderResetManager {
         }
         plugin.getLogger().info("엔더 리셋 시스템 종료");
     }
+
+    // Getter 메서드들
+    public int getResetHour() { return resetHour; }
+    public int getResetMinute() { return resetMinute; }
+    public boolean isEndCityBlockingEnabled() { return blockEndCities; }
+    public String getTargetServerName() { return targetServerName; }
 }

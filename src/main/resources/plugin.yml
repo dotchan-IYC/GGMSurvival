@@ -3,7 +3,7 @@ version: '2.0-NEW-PATCH'
 main: com.ggm.ggmsurvival.GGMSurvival
 api-version: 1.20
 authors: [ DotC ]
-description: GGM 새로운 패치 - 검/도끼/활/흉갑만 강화, 직업레벨 시스템
+description: GGM 새로운 패치 - 검/도끼/활/흉갑만 강화, 직업레벨 시스템, 엔더 리셋
 website: https://ggm.server.com
 depend: []
 softdepend: [GGMCore]
@@ -38,6 +38,12 @@ commands:
     aliases: [드래곤]
     permission: ggm.dragon
 
+  enderreset:
+    description: 엔더 리셋 시스템 관리
+    usage: /enderreset [info|force|schedule|block|reload]
+    aliases: [엔더리셋, ender]
+    permission: ggm.enderreset
+
   survival:
     description: 야생 서버 정보 및 관리
     usage: /survival [info|reload|stats|patch]
@@ -62,6 +68,10 @@ permissions:
     description: 드래곤 정보 확인
     default: true
 
+  ggm.enderreset:
+    description: 엔더 리셋 정보 확인
+    default: true
+
   ggm.survival:
     description: 야생 서버 기본 정보
     default: true
@@ -83,6 +93,14 @@ permissions:
     description: 드래곤 시스템 관리
     default: op
 
+  ggm.enderreset.admin:
+    description: 엔더 리셋 시스템 관리 (강제 리셋, 시간 변경, 차단 설정)
+    default: op
+
+  ggm.enderreset.bypass:
+    description: 엔드시티 차단 우회 (관리자용)
+    default: op
+
   ggm.survival.admin:
     description: 야생 서버 관리
     default: op
@@ -96,9 +114,12 @@ permissions:
       ggm.upgrade: true
       ggm.trade: true
       ggm.dragon: true
+      ggm.enderreset: true
       ggm.survival: true
       ggm.job.admin: true
       ggm.upgrade.admin: true
       ggm.npc.admin: true
       ggm.dragon.admin: true
+      ggm.enderreset.admin: true
+      ggm.enderreset.bypass: true
       ggm.survival.admin: true

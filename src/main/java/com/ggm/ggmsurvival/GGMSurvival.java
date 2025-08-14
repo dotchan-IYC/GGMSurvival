@@ -1,4 +1,3 @@
-// 업데이트된 GGMSurvival.java - 새로운 패치 시스템 적용
 package com.ggm.ggmsurvival;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -18,6 +17,7 @@ public class GGMSurvival extends JavaPlugin {
     private AxeSpeedManager axeSpeedManager;
     private DragonRewardManager dragonRewardManager;
     private NPCTradeManager npcTradeManager;
+    private EnderResetManager enderResetManager;
 
     @Override
     public void onEnable() {
@@ -38,12 +38,13 @@ public class GGMSurvival extends JavaPlugin {
 
             getLogger().info("GGMSurvival 새로운 패치가 활성화되었습니다!");
             getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            getLogger().info("§6🎯 새로운 강화 시스템: 검, 도끼, 활, 흉갑만 강화 가능");
-            getLogger().info("§e⚔️ 새로운 직업레벨: 몬스터 처치로 성장하는 직업");
-            getLogger().info("§a✨ 경험치바 UI: 실시간 레벨 & 경험치 표시");
-            getLogger().info("§c🔥 만렙 10 효과: 탱커(체력+4칸), 검사(크리티컬), 궁수(화살3발)");
-            getLogger().info("§9🛡️ 도끼 공격속도: 강화 시 공격간격 감소");
-            getLogger().info("§6🎖️ 10강 특수 효과: 발화, 출혈, 화염, 가시");
+            getLogger().info("새로운 강화 시스템: 검, 도끼, 활, 흉갑만 강화 가능");
+            getLogger().info("새로운 직업레벨: 몬스터 처치로 성장하는 직업");
+            getLogger().info("경험치바 UI: 실시간 레벨 & 경험치 표시");
+            getLogger().info("만렙 10 효과: 탱커(체력+4칸), 검사(크리티컬), 궁수(화살3발)");
+            getLogger().info("도끼 공격속도: 강화 시 공격간격 감소");
+            getLogger().info("10강 특수 효과: 발화, 출혈, 화염, 가시");
+            getLogger().info("엔더 리셋 시스템: 매일 12시 자동 초기화");
             getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             getLogger().info("모든 새로운 기능이 성공적으로 로드되었습니다!");
 
@@ -68,6 +69,11 @@ public class GGMSurvival extends JavaPlugin {
                 jobManager.onDisable();
             }
 
+            // 엔더 리셋 시스템 종료
+            if (enderResetManager != null) {
+                enderResetManager.shutdown();
+            }
+
             // 데이터베이스 연결 종료
             if (databaseManager != null) {
                 databaseManager.closeConnection();
@@ -87,38 +93,44 @@ public class GGMSurvival extends JavaPlugin {
 
             // 데이터베이스 매니저 (항상 필요)
             databaseManager = new DatabaseManager(this);
-            getLogger().info("✓ 데이터베이스 매니저 초기화 완료");
+            getLogger().info("데이터베이스 매니저 초기화 완료");
 
             // 경제 매니저 (항상 필요 - GGMCore 연동)
             economyManager = new EconomyManager(this);
-            getLogger().info("✓ 경제 매니저 초기화 완료");
+            getLogger().info("경제 매니저 초기화 완료");
 
             // 새로운 직업레벨 시스템 매니저 (모든 서버에서 활성화)
             if (isFeatureEnabled("job_system")) {
                 jobManager = new JobManager(this);
-                getLogger().info("✓ 새로운 직업레벨 시스템 매니저 초기화 완료");
+                getLogger().info("새로운 직업레벨 시스템 매니저 초기화 완료");
             }
 
             // 새로운 강화 시스템 매니저 (야생 서버 전용)
             if (isFeatureEnabled("upgrade_system")) {
                 enchantUpgradeManager = new EnchantUpgradeManager(this);
-                getLogger().info("✓ 새로운 강화 시스템 매니저 초기화 완료 (검,도끼,활,흉갑만)");
+                getLogger().info("새로운 강화 시스템 매니저 초기화 완료 (검,도끼,활,흉갑만)");
 
                 // 도끼 공격속도 시스템 매니저
                 axeSpeedManager = new AxeSpeedManager(this);
-                getLogger().info("✓ 도끼 공격속도 시스템 매니저 초기화 완료");
+                getLogger().info("도끼 공격속도 시스템 매니저 초기화 완료");
             }
 
             // 드래곤 보상 매니저
             if (isFeatureEnabled("dragon_reward")) {
                 dragonRewardManager = new DragonRewardManager(this);
-                getLogger().info("✓ 드래곤 보상 매니저 초기화 완료");
+                getLogger().info("드래곤 보상 매니저 초기화 완료");
             }
 
             // NPC 교환 매니저
             if (isFeatureEnabled("npc_trading")) {
                 npcTradeManager = new NPCTradeManager(this);
-                getLogger().info("✓ NPC 교환 매니저 초기화 완료");
+                getLogger().info("NPC 교환 매니저 초기화 완료");
+            }
+
+            // 엔더 리셋 매니저 (야생 서버 전용)
+            if (isFeatureEnabled("ender_reset")) {
+                enderResetManager = new EnderResetManager(this);
+                getLogger().info("엔더 리셋 매니저 초기화 완료 (매일 12시 자동 초기화)");
             }
 
         } catch (Exception e) {
@@ -134,7 +146,7 @@ public class GGMSurvival extends JavaPlugin {
                 JobCommand jobCommand = new JobCommand(this);
                 getCommand("job").setExecutor(jobCommand);
                 getCommand("job").setTabCompleter(jobCommand);
-                getLogger().info("✓ 새로운 직업 명령어 등록 완료");
+                getLogger().info("새로운 직업 명령어 등록 완료");
             }
 
             // 새로운 강화 명령어
@@ -142,25 +154,31 @@ public class GGMSurvival extends JavaPlugin {
                 UpgradeCommand upgradeCommand = new UpgradeCommand(this);
                 getCommand("upgrade").setExecutor(upgradeCommand);
                 getCommand("upgrade").setTabCompleter(upgradeCommand);
-                getLogger().info("✓ 새로운 강화 명령어 등록 완료");
+                getLogger().info("새로운 강화 명령어 등록 완료");
             }
 
             // NPC 명령어
             if (npcTradeManager != null) {
                 getCommand("npc").setExecutor(new NPCCommand(this));
                 getCommand("trade").setExecutor(new TradeCommand(this));
-                getLogger().info("✓ NPC 교환 명령어 등록 완료");
+                getLogger().info("NPC 교환 명령어 등록 완료");
             }
 
             // 드래곤 명령어
             if (dragonRewardManager != null) {
                 getCommand("dragon").setExecutor(new DragonCommand(this));
-                getLogger().info("✓ 드래곤 명령어 등록 완료");
+                getLogger().info("드래곤 명령어 등록 완료");
+            }
+
+            // 엔더 리셋 명령어
+            if (enderResetManager != null) {
+                getCommand("enderreset").setExecutor(new EnderResetCommand(this));
+                getLogger().info("엔더 리셋 명령어 등록 완료");
             }
 
             // 메인 명령어
             getCommand("survival").setExecutor(new SurvivalCommand(this));
-            getLogger().info("✓ 메인 명령어 등록 완료");
+            getLogger().info("메인 명령어 등록 완료");
 
         } catch (Exception e) {
             getLogger().severe("명령어 등록 중 오류: " + e.getMessage());
@@ -172,42 +190,60 @@ public class GGMSurvival extends JavaPlugin {
         try {
             // 수정된 플레이어 기본 리스너
             getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
-            getLogger().info("✓ 수정된 플레이어 리스너 등록 완료");
+            getLogger().info("수정된 플레이어 리스너 등록 완료");
 
             // 새로운 직업레벨 시스템 리스너
             if (jobManager != null) {
                 getServer().getPluginManager().registerEvents(jobManager, this);
 
-                // 새로운 직업 선택 GUI 리스너
-                getServer().getPluginManager().registerEvents(new JobGUIListener(this), this);
-                getLogger().info("✓ 새로운 직업 시스템 리스너 등록 완료");
+                // 새로운 직업 선택 GUI 리스너 (안전하게 등록)
+                try {
+                    getServer().getPluginManager().registerEvents(new JobGUIListener(this), this);
+                    getLogger().info("직업 GUI 리스너 등록 완료");
+                } catch (Exception e) {
+                    getLogger().info("JobGUIListener 클래스를 찾을 수 없습니다. 건너뜁니다.");
+                }
+
+                getLogger().info("새로운 직업 시스템 리스너 등록 완료");
             }
 
             // 새로운 강화 시스템 리스너
             if (enchantUpgradeManager != null) {
                 getServer().getPluginManager().registerEvents(enchantUpgradeManager, this);
 
-                // 강화 GUI 리스너
-                getServer().getPluginManager().registerEvents(new UpgradeGUIListener(this), this);
-                getLogger().info("✓ 새로운 강화 시스템 리스너 등록 완료");
+                // 강화 GUI 리스너 (안전하게 등록)
+                try {
+                    getServer().getPluginManager().registerEvents(new UpgradeGUIListener(this), this);
+                    getLogger().info("강화 GUI 리스너 등록 완료");
+                } catch (Exception e) {
+                    getLogger().info("UpgradeGUIListener 클래스를 찾을 수 없습니다. 건너뜁니다.");
+                }
+
+                getLogger().info("새로운 강화 시스템 리스너 등록 완료");
             }
 
             // 도끼 공격속도 시스템 리스너
             if (axeSpeedManager != null) {
                 getServer().getPluginManager().registerEvents(axeSpeedManager, this);
-                getLogger().info("✓ 도끼 공격속도 시스템 리스너 등록 완료");
+                getLogger().info("도끼 공격속도 시스템 리스너 등록 완료");
             }
 
             // 드래곤 보상 리스너
             if (dragonRewardManager != null) {
                 getServer().getPluginManager().registerEvents(dragonRewardManager, this);
-                getLogger().info("✓ 드래곤 보상 리스너 등록 완료");
+                getLogger().info("드래곤 보상 리스너 등록 완료");
             }
 
             // NPC 교환 리스너
             if (npcTradeManager != null) {
                 getServer().getPluginManager().registerEvents(npcTradeManager, this);
-                getLogger().info("✓ NPC 교환 리스너 등록 완료");
+                getLogger().info("NPC 교환 리스너 등록 완료");
+            }
+
+            // 엔더 리셋 리스너 (엔드시티 차단)
+            if (enderResetManager != null) {
+                getServer().getPluginManager().registerEvents(new EnderListener(this), this);
+                getLogger().info("엔더 리셋 리스너 등록 완료 (엔드시티 차단)");
             }
 
         } catch (Exception e) {
@@ -296,10 +332,6 @@ public class GGMSurvival extends JavaPlugin {
         return axeSpeedManager;
     }
 
-    public ScoreboardIntegration getScoreboardIntegration() {
-        return jobManager != null ? jobManager.getScoreboardIntegration() : null;
-    }
-
     public DragonRewardManager getDragonRewardManager() {
         return dragonRewardManager;
     }
@@ -308,44 +340,11 @@ public class GGMSurvival extends JavaPlugin {
         return npcTradeManager;
     }
 
-    /**
-     * 플러그인 정보 표시
-     */
-    public void showPluginInfo() {
-        getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        getLogger().info("GGMSurvival 새로운 패치 정보:");
-        getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        getLogger().info("🔥 새로운 강화 시스템:");
-        getLogger().info("   • 강화 가능: 검, 도끼, 활, 흉갑만");
-        getLogger().info("   • 검/활: 위력 3% 증가");
-        getLogger().info("   • 도끼: 공격간격 2% 감소 (더 빨라짐)");
-        getLogger().info("   • 흉갑: 방어력 3% 증가");
-        getLogger().info("   • 10강: 발화, 출혈, 화염, 가시 효과");
-        getLogger().info("");
-        getLogger().info("⚔️ 새로운 직업레벨 시스템:");
-        getLogger().info("   • 몬스터 처치로 경험치 획득");
-        getLogger().info("   • 최대 레벨 10까지 성장");
-        getLogger().info("   • 레벨 5: 각 직업별 특수 능력");
-        getLogger().info("   • 탱커: 흉갑 착용시 체력 +2칸");
-        getLogger().info("   • 검사: 검 사용시 공격속도 증가");
-        getLogger().info("   • 궁수: 가죽장화 착용시 이동속도 +20%");
-        getLogger().info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    public EnderResetManager getEnderResetManager() {
+        return enderResetManager;
     }
 
-    /**
-     * 설정 리로드
-     */
-    public void reloadPluginConfig() {
-        reloadConfig();
-        getLogger().info("설정 파일이 리로드되었습니다.");
-
-        // 설정 변경사항 적용
-        if (jobManager != null) {
-            // 직업 시스템 설정 재적용
-        }
-
-        if (enchantUpgradeManager != null) {
-            // 강화 시스템 설정 재적용
-        }
+    public ScoreboardIntegration getScoreboardIntegration() {
+        return jobManager != null ? jobManager.getScoreboardIntegration() : null;
     }
 }
