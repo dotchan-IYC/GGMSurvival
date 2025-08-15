@@ -1,17 +1,25 @@
-// 직업 선택 GUI 이벤트 처리
+// 완전 안정화된 JobGUIListener.java
 package com.ggm.ggmsurvival.listeners;
 
 import com.ggm.ggmsurvival.GGMSurvival;
 import com.ggm.ggmsurvival.managers.JobManager;
 import com.ggm.ggmsurvival.managers.JobManager.JobType;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.logging.Level;
+
+/**
+ * 완전 안정화된 직업 GUI 리스너
+ * - 직업 선택 GUI 처리
+ * - 강력한 예외 처리
+ * - 무효한 클릭 방지
+ */
 public class JobGUIListener implements Listener {
 
     private final GGMSurvival plugin;
@@ -22,100 +30,124 @@ public class JobGUIListener implements Listener {
         this.jobManager = plugin.getJobManager();
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
+        // 기본 검증
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (plugin.isShuttingDown()) return;
+        if (jobManager == null) return;
 
-        Player player = (Player) event.getWhoClicked();
-        String title = event.getView().getTitle();
+        try {
+            String title = event.getView().getTitle();
 
-        // 직업 선택 GUI가 아니면 무시
-        if (!title.contains("직업 선택")) return;
+            // 직업 선택 GUI인지 확인
+            if (!"§6§l직업 선택".equals(title)) return;
 
-        event.setCancelled(true); // 아이템 이동 방지
+            // 모든 클릭 취소
+            event.setCancelled(true);
 
-        ItemStack clickedItem = event.getCurrentItem();
-        if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
+            ItemStack clickedItem = event.getCurrentItem();
+            if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
 
-        // 이미 직업이 있는지 확인
-        if (jobManager.getJobType(player) != JobType.NONE) {
+            // 이미 직업이 있는지 확인
+            JobType currentJob = jobManager.getJobType(player);
+            if (currentJob != JobType.NONE) {
+                player.closeInventory();
+                player.sendMessage("§c이미 " + currentJob.getColor() + currentJob.getDisplayName() +
+                        " §c직업을 선택하셨습니다!");
+                return;
+            }
+
+            // 클릭된 아이템에 따른 직업 선택
+            JobType selectedJob = getJobFromItem(clickedItem);
+            if (selectedJob == null || selectedJob == JobType.NONE) return;
+
+            // 직업 선택 실행
+            if (jobManager.setJobType(player, selectedJob)) {
+                player.closeInventory();
+
+                // 성공 메시지
+                String message = plugin.getConfig().getString("messages.job_selected",
+                                "{job} 직업을 선택하셨습니다! 몬스터를 처치하여 레벨을 올리세요.")
+                        .replace("{job}", selectedJob.getColor() + selectedJob.getDisplayName() + "§a");
+
+                player.sendMessage("§a" + message);
+                player.playSound(player.getLocation(),
+                        org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+
+                // 환영 메시지
+                showJobWelcomeMessage(player, selectedJob);
+
+                plugin.getLogger().info(String.format("[직업선택] %s이(가) %s 직업을 선택했습니다.",
+                        player.getName(), selectedJob.getDisplayName()));
+
+            } else {
+                player.closeInventory();
+                player.sendMessage("§c직업 선택에 실패했습니다. 이미 직업이 있거나 오류가 발생했습니다.");
+            }
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "직업 GUI 처리 중 오류: " + player.getName(), e);
+
             player.closeInventory();
-            player.sendMessage("§c이미 직업을 선택하셨습니다!");
-            return;
+            player.sendMessage("§c직업 선택 중 오류가 발생했습니다. 명령어를 사용해주세요: /job select");
         }
+    }
 
-        JobType selectedJob = null;
-        String jobDescription = "";
-
-        // 클릭한 아이템에 따라 직업 결정
-        switch (clickedItem.getType()) {
-            case SHIELD:
-                selectedJob = JobType.TANK;
-                jobDescription = "§9탱커 §7- 방어와 생존의 전문가";
-                break;
-
-            case DIAMOND_SWORD:
-                selectedJob = JobType.WARRIOR;
-                jobDescription = "§c검사 §7- 근접 전투의 달인";
-                break;
-
+    /**
+     * 아이템으로부터 직업 타입 추출
+     */
+    private JobType getJobFromItem(ItemStack item) {
+        switch (item.getType()) {
+            case IRON_CHESTPLATE:
+                return JobType.TANK;
+            case IRON_SWORD:
+                return JobType.WARRIOR;
             case BOW:
-                selectedJob = JobType.ARCHER;
-                jobDescription = "§a궁수 §7- 원거리 공격의 명수";
-                break;
-
+                return JobType.ARCHER;
             default:
-                return; // 다른 아이템 클릭 시 무시
+                return null;
         }
+    }
 
-        // 직업 선택 처리
-        if (selectedJob != null && jobManager.setJobType(player, selectedJob)) {
-            player.closeInventory();
-
-            // 성공 메시지
-            player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            player.sendMessage("§e⚔️ 직업 선택 완료!");
-            player.sendMessage("§7선택한 직업: " + jobDescription);
-            player.sendMessage("§7레벨: §f1 §7(시작 레벨)");
+    /**
+     * 직업 환영 메시지 표시
+     */
+    private void showJobWelcomeMessage(Player player, JobType job) {
+        try {
             player.sendMessage("");
-            player.sendMessage("§a§l새로운 모험이 시작됩니다!");
-            player.sendMessage("§7몬스터를 처치하여 경험치를 획득하세요.");
-            player.sendMessage("§7레벨업할 때마다 능력이 강화됩니다.");
-            player.sendMessage("§6레벨 5 달성시 특수 능력이 해제됩니다!");
-            player.sendMessage("");
+            player.sendMessage("§6==========================================");
+            player.sendMessage("§e§l" + job.getDisplayName() + " 직업에 오신 것을 환영합니다!");
 
-            // 직업별 특징 안내
-            switch (selectedJob) {
+            switch (job) {
                 case TANK:
-                    player.sendMessage("§9§l탱커 특징:");
-                    player.sendMessage("§7• 방패로 공격을 막으면 체력 회복");
-                    player.sendMessage("§7• 레벨 5: 흉갑 착용시 체력 +2칸");
+                    player.sendMessage("§9당신은 이제 강력한 방어력을 가진 탱커입니다!");
+                    player.sendMessage("§7• 몬스터의 공격을 견디며 팀을 보호하세요");
+                    player.sendMessage("§7• 레벨 5가 되면 흉갑의 진정한 힘을 느낄 수 있습니다");
                     break;
+
                 case WARRIOR:
-                    player.sendMessage("§c§l검사 특징:");
-                    player.sendMessage("§7• 검 공격력이 레벨당 5% 증가");
-                    player.sendMessage("§7• 레벨 5: 검 사용시 공격속도 증가");
+                    player.sendMessage("§c당신은 이제 용맹한 검사입니다!");
+                    player.sendMessage("§7• 검으로 적을 베어나가며 전장을 지배하세요");
+                    player.sendMessage("§7• 레벨 5가 되면 검의 진정한 힘을 느낄 수 있습니다");
                     break;
+
                 case ARCHER:
-                    player.sendMessage("§a§l궁수 특징:");
-                    player.sendMessage("§7• 활 공격력이 레벨당 4% 증가");
-                    player.sendMessage("§7• 레벨 5: 가죽장화 착용시 이동속도 +20%");
+                    player.sendMessage("§a당신은 이제 민첩한 궁수입니다!");
+                    player.sendMessage("§7• 활로 원거리에서 적을 제압하세요");
+                    player.sendMessage("§7• 레벨 5가 되면 바람의 속도를 느낄 수 있습니다");
                     break;
             }
 
-            player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            player.sendMessage("");
+            player.sendMessage("§a몬스터를 처치하여 경험치를 획득하고 성장하세요!");
+            player.sendMessage("§7현재 레벨: §f1 §7| 목표: §e레벨 10 만렙");
+            player.sendMessage("§6==========================================");
 
-            // 성공 효과
-            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-            player.sendTitle("§6직업 선택 완료!", jobDescription, 10, 40, 10);
-
-            // 로그
-            plugin.getLogger().info(String.format("[직업선택] %s: %s 선택",
-                    player.getName(), selectedJob.getDisplayName()));
-
-        } else {
-            player.closeInventory();
-            player.sendMessage("§c직업 선택에 실패했습니다. 다시 시도해주세요.");
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "환영 메시지 표시 실패: " + player.getName(), e);
         }
     }
 }

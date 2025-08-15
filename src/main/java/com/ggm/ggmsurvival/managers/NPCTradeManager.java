@@ -1,3 +1,4 @@
+// 완전 안정화된 NPCTradeManager.java
 package com.ggm.ggmsurvival.managers;
 
 import com.ggm.ggmsurvival.GGMSurvival;
@@ -8,143 +9,66 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.NamespacedKey;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
+/**
+ * 완전 안정화된 NPC 교환 시스템 매니저
+ * - NPC 생성 및 관리
+ * - 아이템 교환 처리
+ * - Thread-Safe 구현
+ * - 데이터베이스 연동
+ */
 public class NPCTradeManager implements Listener {
 
     private final GGMSurvival plugin;
     private final DatabaseManager databaseManager;
     private final EconomyManager economyManager;
 
-    // 상인 타입별 거래 가격 - Map.of() 문제 해결
-    public enum TradeType {
-        MINING("§6광물 상인", createMiningPrices()),
-        COMBAT("§c전투 상인", createCombatPrices()),
-        FARMING("§a농업 상인", createFarmingPrices()),
-        RARE("§5희귀 상인", createRarePrices()),
-        BUILDING("§b건축 상인", createBuildingPrices()),
-        REDSTONE("§4레드스톤 상인", createRedstonePrices());
+    // NPC 관리
+    private final ConcurrentHashMap<UUID, NPCData> managedNPCs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, TradeOffer> tradeOffers = new ConcurrentHashMap<>();
 
-        public final String displayName;
-        private final Map<Material, Long> prices;
+    // 네임스페이스 키들
+    private final NamespacedKey npcTypeKey;
+    private final NamespacedKey npcIdKey;
 
-        TradeType(String displayName, Map<Material, Long> prices) {
+    // 설정값들
+    private final int maxNPCs;
+    private final boolean npcProtection;
+    private final boolean npcAIDisabled;
+
+    // NPC 타입 정의
+    public enum NPCType {
+        ITEM_TRADER("아이템 상인", "아이템을 사고팝니다"),
+        RESOURCE_TRADER("자원 상인", "자원을 교환합니다"),
+        SPECIAL_TRADER("특수 상인", "특별한 아이템을 거래합니다");
+
+        private final String displayName;
+        private final String description;
+
+        NPCType(String displayName, String description) {
             this.displayName = displayName;
-            this.prices = new HashMap<>(prices);
+            this.description = description;
         }
 
-        public Long getPrice(Material material) {
-            return prices.get(material);
-        }
-
-        public Map<Material, Long> getAllPrices() {
-            return new HashMap<>(prices);
-        }
-
-        // Map.of() 대신 static 메소드로 Map 생성
-        private static Map<Material, Long> createMiningPrices() {
-            Map<Material, Long> prices = new HashMap<>();
-            prices.put(Material.DIAMOND, 1000L);
-            prices.put(Material.EMERALD, 800L);
-            prices.put(Material.GOLD_INGOT, 200L);
-            prices.put(Material.IRON_INGOT, 100L);
-            prices.put(Material.COAL, 50L);
-            prices.put(Material.REDSTONE, 30L);
-            prices.put(Material.LAPIS_LAZULI, 40L);
-            prices.put(Material.QUARTZ, 60L);
-            return prices;
-        }
-
-        private static Map<Material, Long> createCombatPrices() {
-            Map<Material, Long> prices = new HashMap<>();
-            prices.put(Material.ROTTEN_FLESH, 10L);
-            prices.put(Material.BONE, 20L);
-            prices.put(Material.STRING, 15L);
-            prices.put(Material.SPIDER_EYE, 25L);
-            prices.put(Material.GUNPOWDER, 50L);
-            prices.put(Material.ENDER_PEARL, 500L);
-            prices.put(Material.BLAZE_ROD, 300L);
-            prices.put(Material.GHAST_TEAR, 800L);
-            prices.put(Material.NETHER_STAR, 10000L);
-            prices.put(Material.DRAGON_BREATH, 2000L);
-            return prices;
-        }
-
-        private static Map<Material, Long> createFarmingPrices() {
-            Map<Material, Long> prices = new HashMap<>();
-            prices.put(Material.WHEAT, 20L);
-            prices.put(Material.CARROT, 15L);
-            prices.put(Material.POTATO, 15L);
-            prices.put(Material.BEETROOT, 18L);
-            prices.put(Material.SUGAR_CANE, 25L);
-            prices.put(Material.MELON_SLICE, 12L);
-            prices.put(Material.PUMPKIN, 30L);
-            prices.put(Material.BEEF, 40L);
-            prices.put(Material.PORKCHOP, 35L);
-            prices.put(Material.CHICKEN, 30L);
-            prices.put(Material.MUTTON, 38L);
-            prices.put(Material.LEATHER, 25L);
-            prices.put(Material.FEATHER, 20L);
-            return prices;
-        }
-
-        private static Map<Material, Long> createRarePrices() {
-            Map<Material, Long> prices = new HashMap<>();
-            prices.put(Material.NETHERITE_INGOT, 50000L);
-            prices.put(Material.NETHERITE_SCRAP, 12000L);
-            prices.put(Material.ANCIENT_DEBRIS, 15000L);
-            prices.put(Material.WITHER_SKELETON_SKULL, 5000L);
-            prices.put(Material.DRAGON_HEAD, 20000L);
-            prices.put(Material.ELYTRA, 30000L);
-            prices.put(Material.SHULKER_SHELL, 3000L);
-            prices.put(Material.PHANTOM_MEMBRANE, 1000L);
-            prices.put(Material.HEART_OF_THE_SEA, 8000L);
-            prices.put(Material.NAUTILUS_SHELL, 2000L);
-            return prices;
-        }
-
-        private static Map<Material, Long> createBuildingPrices() {
-            Map<Material, Long> prices = new HashMap<>();
-            prices.put(Material.OAK_LOG, 30L);
-            prices.put(Material.BIRCH_LOG, 32L);
-            prices.put(Material.SPRUCE_LOG, 35L);
-            prices.put(Material.JUNGLE_LOG, 38L);
-            prices.put(Material.ACACIA_LOG, 33L);
-            prices.put(Material.DARK_OAK_LOG, 40L);
-            prices.put(Material.STONE, 10L);
-            prices.put(Material.COBBLESTONE, 8L);
-            prices.put(Material.SAND, 15L);
-            prices.put(Material.GRAVEL, 12L);
-            prices.put(Material.CLAY, 25L);
-            prices.put(Material.TERRACOTTA, 20L);
-            return prices;
-        }
-
-        private static Map<Material, Long> createRedstonePrices() {
-            Map<Material, Long> prices = new HashMap<>();
-            prices.put(Material.REDSTONE, 30L);
-            prices.put(Material.REDSTONE_BLOCK, 270L);
-            prices.put(Material.REPEATER, 100L);
-            prices.put(Material.COMPARATOR, 150L);
-            prices.put(Material.PISTON, 80L);
-            prices.put(Material.STICKY_PISTON, 120L);
-            prices.put(Material.OBSERVER, 200L);
-            prices.put(Material.DROPPER, 90L);
-            prices.put(Material.DISPENSER, 100L);
-            prices.put(Material.HOPPER, 300L);
-            return prices;
-        }
+        public String getDisplayName() { return displayName; }
+        public String getDescription() { return description; }
     }
 
     public NPCTradeManager(GGMSurvival plugin) {
@@ -152,515 +76,776 @@ public class NPCTradeManager implements Listener {
         this.databaseManager = plugin.getDatabaseManager();
         this.economyManager = plugin.getEconomyManager();
 
-        // 테이블 생성
-        createNPCTable();
+        try {
+            // 네임스페이스 키 초기화
+            this.npcTypeKey = new NamespacedKey(plugin, "npc_type");
+            this.npcIdKey = new NamespacedKey(plugin, "npc_id");
 
-        plugin.getLogger().info("NPC 교환 시스템 초기화 완료");
-    }
+            // 설정값 로드
+            this.maxNPCs = plugin.getConfig().getInt("npc_system.max_npcs", 50);
+            this.npcProtection = plugin.getConfig().getBoolean("npc_system.npc_protection", true);
+            this.npcAIDisabled = plugin.getConfig().getBoolean("npc_system.npc_ai_disabled", true);
 
-    /**
-     * NPC 테이블 생성
-     */
-    private void createNPCTable() {
-        String sql = """
-            CREATE TABLE IF NOT EXISTS ggm_npcs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                entity_uuid VARCHAR(36) NOT NULL UNIQUE,
-                npc_name VARCHAR(50) NOT NULL,
-                trade_type VARCHAR(20) NOT NULL,
-                world VARCHAR(50) NOT NULL,
-                x DOUBLE NOT NULL,
-                y DOUBLE NOT NULL,
-                z DOUBLE NOT NULL,
-                created_by VARCHAR(36) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_world (world),
-                INDEX idx_trade_type (trade_type)
-            )
-            """;
+            // 데이터베이스 테이블 생성
+            createNPCTables();
 
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.executeUpdate();
-            plugin.getLogger().info("NPC 테이블이 준비되었습니다.");
-        } catch (SQLException e) {
-            plugin.getLogger().severe("NPC 테이블 생성 실패: " + e.getMessage());
+            // 기본 교환 오퍼 초기화
+            initializeDefaultTrades();
+
+            // 저장된 NPC 로드
+            loadNPCsFromDatabase();
+
+            plugin.getLogger().info("NPCTradeManager 안정화 초기화 완료");
+            plugin.getLogger().info("최대 NPC 수: " + maxNPCs + "개");
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "NPCTradeManager 초기화 실패", e);
+            throw new RuntimeException("NPCTradeManager 초기화 실패", e);
         }
     }
 
     /**
-     * NPC 생성 - 수정된 메소드 시그니처
+     * NPC 관련 테이블 생성
      */
-    public boolean createTradeNPC(Player creator, String npcName, TradeType tradeType) {
+    private void createNPCTables() {
+        try (Connection connection = databaseManager.getConnection()) {
+
+            String npcDataSQL = """
+                CREATE TABLE IF NOT EXISTS npc_data (
+                    id VARCHAR(36) PRIMARY KEY,
+                    npc_type VARCHAR(50) NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    world VARCHAR(50) NOT NULL,
+                    x DOUBLE NOT NULL,
+                    y DOUBLE NOT NULL,
+                    z DOUBLE NOT NULL,
+                    yaw FLOAT DEFAULT 0,
+                    pitch FLOAT DEFAULT 0,
+                    created_by VARCHAR(36) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_world (world),
+                    INDEX idx_npc_type (npc_type)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+
+            String tradeLogSQL = """
+                CREATE TABLE IF NOT EXISTS npc_trade_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    npc_id VARCHAR(36) NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    player_name VARCHAR(16) NOT NULL,
+                    trade_type VARCHAR(50) NOT NULL,
+                    item_given VARCHAR(100) NOT NULL,
+                    item_received VARCHAR(100) NOT NULL,
+                    trade_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_npc_id (npc_id),
+                    INDEX idx_player_uuid (player_uuid),
+                    INDEX idx_trade_time (trade_time)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+
+            try (PreparedStatement stmt1 = connection.prepareStatement(npcDataSQL);
+                 PreparedStatement stmt2 = connection.prepareStatement(tradeLogSQL)) {
+
+                stmt1.executeUpdate();
+                stmt2.executeUpdate();
+            }
+
+            plugin.getLogger().info("NPC 데이터베이스 테이블 생성 완료");
+
+        } catch (SQLException e) {
+            throw new RuntimeException("NPC 테이블 생성 실패", e);
+        }
+    }
+
+    /**
+     * 기본 교환 오퍼 초기화
+     */
+    private void initializeDefaultTrades() {
         try {
-            Location location = creator.getLocation();
+            // 아이템 상인 교환
+            addTradeOffer("item_trader_1", new TradeOffer(
+                    "다이아몬드 → 에메랄드",
+                    new ItemStack(Material.DIAMOND, 2),
+                    new ItemStack(Material.EMERALD, 1),
+                    0, NPCType.ITEM_TRADER
+            ));
 
+            addTradeOffer("item_trader_2", new TradeOffer(
+                    "철괴 → 금괴",
+                    new ItemStack(Material.IRON_INGOT, 4),
+                    new ItemStack(Material.GOLD_INGOT, 1),
+                    0, NPCType.ITEM_TRADER
+            ));
+
+            // 자원 상인 교환
+            addTradeOffer("resource_trader_1", new TradeOffer(
+                    "원목 구매",
+                    null, null, 100,
+                    NPCType.RESOURCE_TRADER
+            ));
+
+            addTradeOffer("resource_trader_2", new TradeOffer(
+                    "조약돌 판매",
+                    new ItemStack(Material.COBBLESTONE, 64),
+                    null, 500,
+                    NPCType.RESOURCE_TRADER
+            ));
+
+            // 특수 상인 교환
+            addTradeOffer("special_trader_1", new TradeOffer(
+                    "경험치 병 구매",
+                    null,
+                    new ItemStack(Material.EXPERIENCE_BOTTLE, 10),
+                    5000, NPCType.SPECIAL_TRADER
+            ));
+
+            plugin.getLogger().info("기본 교환 오퍼 " + tradeOffers.size() + "개 로드됨");
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "기본 교환 오퍼 초기화 중 오류", e);
+        }
+    }
+
+    /**
+     * 데이터베이스에서 NPC 로드
+     */
+    private void loadNPCsFromDatabase() {
+        CompletableFuture.runAsync(() -> {
+            try (Connection connection = databaseManager.getConnection();
+                 PreparedStatement stmt = connection.prepareStatement(
+                         "SELECT * FROM npc_data");
+                 ResultSet rs = stmt.executeQuery()) {
+
+                int loadedCount = 0;
+
+                while (rs.next()) {
+                    try {
+                        String npcId = rs.getString("id");
+                        NPCType npcType = NPCType.valueOf(rs.getString("npc_type"));
+                        String name = rs.getString("name");
+                        String worldName = rs.getString("world");
+                        double x = rs.getDouble("x");
+                        double y = rs.getDouble("y");
+                        double z = rs.getDouble("z");
+                        float yaw = rs.getFloat("yaw");
+                        float pitch = rs.getFloat("pitch");
+                        UUID createdBy = UUID.fromString(rs.getString("created_by"));
+
+                        // 메인 스레드에서 NPC 생성
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            try {
+                                Location location = new Location(
+                                        Bukkit.getWorld(worldName), x, y, z, yaw, pitch);
+
+                                if (location.getWorld() != null) {
+                                    createNPCAtLocation(npcId, npcType, name, location, createdBy);
+                                }
+                            } catch (Exception e) {
+                                plugin.getLogger().log(Level.WARNING,
+                                        "NPC 로드 실패: " + npcId, e);
+                            }
+                        });
+
+                        loadedCount++;
+
+                    } catch (Exception e) {
+                        plugin.getLogger().log(Level.WARNING, "NPC 데이터 파싱 실패", e);
+                    }
+                }
+
+                final int finalCount = loadedCount;
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    plugin.getLogger().info("데이터베이스에서 " + finalCount + "개 NPC 로드 완료");
+                });
+
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "NPC 로드 실패", e);
+            }
+        });
+    }
+
+    /**
+     * NPC 생성
+     */
+    public boolean createNPC(NPCType type, String name, Location location, Player creator) {
+        try {
+            if (managedNPCs.size() >= maxNPCs) {
+                creator.sendMessage("§c최대 NPC 수(" + maxNPCs + "개)에 도달했습니다.");
+                return false;
+            }
+
+            String npcId = UUID.randomUUID().toString();
+
+            // NPC 엔티티 생성
+            if (createNPCAtLocation(npcId, type, name, location, creator.getUniqueId())) {
+
+                // 데이터베이스에 저장
+                saveNPCToDatabase(npcId, type, name, location, creator.getUniqueId());
+
+                creator.sendMessage("§a" + type.getDisplayName() + " '" + name + "'이(가) 생성되었습니다!");
+
+                plugin.getLogger().info(String.format("[NPC생성] %s이(가) %s를 생성했습니다. (위치: %s)",
+                        creator.getName(), name, locationToString(location)));
+
+                return true;
+            }
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "NPC 생성 실패: " + creator.getName(), e);
+            creator.sendMessage("§cNPC 생성 중 오류가 발생했습니다.");
+        }
+
+        return false;
+    }
+
+    /**
+     * 위치에 NPC 생성
+     */
+    private boolean createNPCAtLocation(String npcId, NPCType type, String name,
+                                        Location location, UUID createdBy) {
+        try {
             // 주민 스폰
-            Villager npc = (Villager) creator.getWorld().spawnEntity(location, EntityType.VILLAGER);
-            npc.setCustomName(tradeType.displayName + " " + npcName);
-            npc.setCustomNameVisible(true);
-            npc.setAI(false); // AI 비활성화
-            npc.setInvulnerable(true); // 무적
-            npc.setProfession(Villager.Profession.NONE);
-            npc.setVillagerType(getVillagerTypeForTrade(tradeType));
+            Villager villager = (Villager) location.getWorld().spawnEntity(location, EntityType.VILLAGER);
 
-            // DB에 저장
-            saveNPCToDatabase(npc, npcName, tradeType, creator);
+            // NPC 설정
+            villager.setCustomName("§e" + name);
+            villager.setCustomNameVisible(true);
+            villager.setInvulnerable(npcProtection);
+            villager.setRemoveWhenFarAway(false);
 
-            creator.sendMessage("§a" + tradeType.displayName + " '" + npcName + "'§a이(가) 생성되었습니다!");
-            creator.sendMessage("§7NPC를 우클릭하여 거래하세요!");
+            // AI 비활성화 (설정에 따라)
+            if (npcAIDisabled) {
+                villager.setAI(false);
+            }
+
+            // 직업 설정
+            villager.setProfession(getProfessionForType(type));
+            villager.setVillagerLevel(5); // 마스터 레벨
+
+            // PersistentData 설정
+            villager.getPersistentDataContainer().set(npcTypeKey, PersistentDataType.STRING, type.name());
+            villager.getPersistentDataContainer().set(npcIdKey, PersistentDataType.STRING, npcId);
+
+            // 관리 목록에 추가
+            NPCData npcData = new NPCData(npcId, type, name, location, createdBy, villager);
+            managedNPCs.put(villager.getUniqueId(), npcData);
 
             return true;
 
         } catch (Exception e) {
-            plugin.getLogger().severe("NPC 생성 오류: " + e.getMessage());
-            creator.sendMessage("§cNPC 생성 중 오류가 발생했습니다: " + e.getMessage());
+            plugin.getLogger().log(Level.WARNING, "NPC 엔티티 생성 실패", e);
             return false;
         }
     }
 
     /**
-     * 거래 타입에 따른 주민 타입 반환
+     * NPC 타입에 따른 직업 반환
      */
-    private Villager.Type getVillagerTypeForTrade(TradeType tradeType) {
-        switch (tradeType) {
-            case MINING:
-                return Villager.Type.PLAINS;
-            case COMBAT:
-                return Villager.Type.DESERT;
-            case FARMING:
-                return Villager.Type.PLAINS;
-            case RARE:
-                return Villager.Type.JUNGLE;
-            case BUILDING:
-                return Villager.Type.TAIGA;
-            case REDSTONE:
-                return Villager.Type.SAVANNA;
+    private Villager.Profession getProfessionForType(NPCType type) {
+        switch (type) {
+            case ITEM_TRADER:
+                return Villager.Profession.TOOLSMITH;
+            case RESOURCE_TRADER:
+                return Villager.Profession.FARMER;
+            case SPECIAL_TRADER:
+                return Villager.Profession.LIBRARIAN;
             default:
-                return Villager.Type.PLAINS;
+                return Villager.Profession.NITWIT;
         }
     }
 
     /**
-     * NPC를 데이터베이스에 저장
+     * 데이터베이스에 NPC 저장
      */
-    private void saveNPCToDatabase(Villager npc, String npcName, TradeType tradeType, Player creator) {
-        try (Connection conn = databaseManager.getConnection()) {
-            String sql = """
-                INSERT INTO ggm_npcs (entity_uuid, npc_name, trade_type, world, x, y, z, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """;
+    private void saveNPCToDatabase(String npcId, NPCType type, String name,
+                                   Location location, UUID createdBy) {
+        CompletableFuture.runAsync(() -> {
+            try (Connection connection = databaseManager.getConnection();
+                 PreparedStatement stmt = connection.prepareStatement(
+                         "INSERT INTO npc_data (id, npc_type, name, world, x, y, z, yaw, pitch, created_by) " +
+                                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
 
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                Location loc = npc.getLocation();
-                stmt.setString(1, npc.getUniqueId().toString());
-                stmt.setString(2, npcName);
-                stmt.setString(3, tradeType.name());
-                stmt.setString(4, loc.getWorld().getName());
-                stmt.setDouble(5, loc.getX());
-                stmt.setDouble(6, loc.getY());
-                stmt.setDouble(7, loc.getZ());
-                stmt.setString(8, creator.getUniqueId().toString());
+                stmt.setString(1, npcId);
+                stmt.setString(2, type.name());
+                stmt.setString(3, name);
+                stmt.setString(4, location.getWorld().getName());
+                stmt.setDouble(5, location.getX());
+                stmt.setDouble(6, location.getY());
+                stmt.setDouble(7, location.getZ());
+                stmt.setFloat(8, location.getYaw());
+                stmt.setFloat(9, location.getPitch());
+                stmt.setString(10, createdBy.toString());
 
                 stmt.executeUpdate();
+
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "NPC 데이터 저장 실패: " + npcId, e);
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("NPC 데이터베이스 저장 실패: " + e.getMessage());
+        });
+    }
+
+    /**
+     * NPC 제거
+     */
+    public boolean removeNPC(UUID npcEntityId, Player remover) {
+        try {
+            NPCData npcData = managedNPCs.get(npcEntityId);
+            if (npcData == null) {
+                remover.sendMessage("§c관리되지 않는 NPC입니다.");
+                return false;
+            }
+
+            // 권한 확인 (생성자 또는 관리자)
+            if (!remover.hasPermission("ggm.npc.admin") &&
+                    !npcData.createdBy.equals(remover.getUniqueId())) {
+                remover.sendMessage("§c이 NPC를 제거할 권한이 없습니다.");
+                return false;
+            }
+
+            // 엔티티 제거
+            if (npcData.entity != null && npcData.entity.isValid()) {
+                npcData.entity.remove();
+            }
+
+            // 관리 목록에서 제거
+            managedNPCs.remove(npcEntityId);
+
+            // 데이터베이스에서 제거
+            removeNPCFromDatabase(npcData.npcId);
+
+            remover.sendMessage("§aNPC '" + npcData.name + "'이(가) 제거되었습니다.");
+
+            plugin.getLogger().info(String.format("[NPC제거] %s이(가) %s를 제거했습니다.",
+                    remover.getName(), npcData.name));
+
+            return true;
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "NPC 제거 실패: " + remover.getName(), e);
+            remover.sendMessage("§cNPC 제거 중 오류가 발생했습니다.");
+            return false;
         }
+    }
+
+    /**
+     * 데이터베이스에서 NPC 제거
+     */
+    private void removeNPCFromDatabase(String npcId) {
+        CompletableFuture.runAsync(() -> {
+            try (Connection connection = databaseManager.getConnection();
+                 PreparedStatement stmt = connection.prepareStatement(
+                         "DELETE FROM npc_data WHERE id = ?")) {
+
+                stmt.setString(1, npcId);
+                stmt.executeUpdate();
+
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "NPC 데이터 삭제 실패: " + npcId, e);
+            }
+        });
     }
 
     /**
      * NPC 상호작용 이벤트
      */
-    @EventHandler
-    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof Villager)) return;
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onNPCInteract(PlayerInteractEntityEvent event) {
+        if (plugin.isShuttingDown()) return;
+        if (!(event.getRightClicked() instanceof Villager villager)) return;
 
-        Villager villager = (Villager) event.getRightClicked();
-        if (villager.getCustomName() == null) return;
+        try {
+            // 관리되는 NPC인지 확인
+            NPCData npcData = managedNPCs.get(villager.getUniqueId());
+            if (npcData == null) return;
 
-        // NPC 상인인지 확인
-        TradeType tradeType = getTradeTypeFromName(villager.getCustomName());
-        if (tradeType == null) return;
+            // 기본 상호작용 취소
+            event.setCancelled(true);
 
-        event.setCancelled(true);
+            Player player = event.getPlayer();
 
-        Player player = event.getPlayer();
+            // 교환 메뉴 열기
+            openTradeMenu(player, npcData);
 
-        if (!plugin.isFeatureEnabled("npc_trading")) {
-            player.sendMessage("§cNPC 교환은 야생 서버에서만 사용할 수 있습니다!");
-            return;
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "NPC 상호작용 처리 중 오류: " + event.getPlayer().getName(), e);
         }
-
-        // 거래 GUI 열기
-        openTradeGUI(player, tradeType);
     }
 
     /**
-     * 상인 이름에서 거래 타입 추출
+     * NPC 피해 이벤트 (보호)
      */
-    private TradeType getTradeTypeFromName(String customName) {
-        for (TradeType type : TradeType.values()) {
-            if (customName.contains(type.displayName.replaceAll("§.", ""))) {
-                return type;
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onNPCDamage(EntityDamageEvent event) {
+        if (!npcProtection) return;
+        if (!(event.getEntity() instanceof Villager villager)) return;
+
+        try {
+            // 관리되는 NPC인지 확인
+            if (managedNPCs.containsKey(villager.getUniqueId())) {
+                event.setCancelled(true);
             }
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "NPC 보호 처리 중 오류", e);
         }
-        return null;
     }
 
     /**
-     * 거래 GUI 열기
+     * 교환 메뉴 열기
      */
-    private void openTradeGUI(Player player, TradeType tradeType) {
-        Inventory gui = Bukkit.createInventory(null, 54, tradeType.displayName + " §0거래소");
+    private void openTradeMenu(Player player, NPCData npcData) {
+        try {
+            player.sendMessage("§6==========================================");
+            player.sendMessage("§e§l" + npcData.name + " §7(" + npcData.type.getDisplayName() + ")");
+            player.sendMessage("§7" + npcData.type.getDescription());
+            player.sendMessage("");
+            player.sendMessage("§a사용 가능한 교환:");
 
-        // 상인 정보 표시
-        ItemStack infoItem = new ItemStack(Material.EMERALD);
-        ItemMeta infoMeta = infoItem.getItemMeta();
-        infoMeta.setDisplayName(tradeType.displayName);
-        infoMeta.setLore(Arrays.asList(
-                "§7아이템을 판매하여 G를 획득하세요!",
-                "",
-                "§e클릭하여 인벤토리의 모든 아이템 판매"
-        ));
-        infoItem.setItemMeta(infoMeta);
-        gui.setItem(4, infoItem);
-
-        // 거래 가능 아이템들 표시
-        Map<Material, Long> prices = tradeType.getAllPrices();
-        int slot = 9;
-
-        for (Map.Entry<Material, Long> entry : prices.entrySet()) {
-            if (slot >= 45) break; // GUI 공간 제한
-
-            Material material = entry.getKey();
-            Long price = entry.getValue();
-
-            ItemStack item = new ItemStack(material);
-            ItemMeta meta = item.getItemMeta();
-            meta.setDisplayName("§f" + getItemDisplayName(material));
-            meta.setLore(Arrays.asList(
-                    "§7가격: §6" + formatMoney(price) + "G §7(개당)",
-                    "",
-                    "§a인벤토리에 있는 이 아이템들이 자동으로 판매됩니다!"
-            ));
-            item.setItemMeta(meta);
-
-            gui.setItem(slot++, item);
-        }
-
-        // 취소 버튼
-        ItemStack cancelButton = new ItemStack(Material.BARRIER);
-        ItemMeta cancelMeta = cancelButton.getItemMeta();
-        cancelMeta.setDisplayName("§c취소");
-        cancelMeta.setLore(Arrays.asList("§7클릭하여 거래를 취소합니다."));
-        cancelButton.setItemMeta(cancelMeta);
-        gui.setItem(49, cancelButton);
-
-        player.openInventory(gui);
-    }
-
-    /**
-     * GUI 클릭 이벤트
-     */
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-
-        Player player = (Player) event.getWhoClicked();
-        String title = event.getView().getTitle();
-
-        // 거래 GUI 확인
-        if (!title.contains("거래소")) return;
-
-        event.setCancelled(true);
-
-        ItemStack clickedItem = event.getCurrentItem();
-        if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
-
-        // 상인 타입 확인
-        TradeType tradeType = null;
-        for (TradeType type : TradeType.values()) {
-            if (title.contains(type.displayName.replaceAll("§.", ""))) {
-                tradeType = type;
-                break;
+            // 해당 타입의 교환 오퍼 표시
+            int offerCount = 0;
+            for (Map.Entry<String, TradeOffer> entry : tradeOffers.entrySet()) {
+                TradeOffer offer = entry.getValue();
+                if (offer.npcType == npcData.type) {
+                    player.sendMessage("§7• " + offer.displayName);
+                    offerCount++;
+                }
             }
-        }
 
-        if (tradeType == null) return;
-
-        if (clickedItem.getType() == Material.EMERALD) {
-            // 판매 실행
-            sellItems(player, tradeType);
-        } else if (clickedItem.getType() == Material.BARRIER) {
-            // 취소
-            player.closeInventory();
-            player.sendMessage("§7거래를 취소했습니다.");
-        }
-    }
-
-    /**
-     * 아이템 판매 처리
-     */
-    private void sellItems(Player player, TradeType tradeType) {
-        if (!plugin.isFeatureEnabled("npc_trading")) {
-            player.sendMessage("§cNPC 교환은 야생 서버에서만 사용할 수 있습니다!");
-            return;
-        }
-
-        Map<Material, Integer> sellableItems = new HashMap<>();
-        long totalPrice = 0;
-
-        // 인벤토리에서 판매 가능한 아이템 찾기
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (item == null || item.getType() == Material.AIR) continue;
-
-            Long price = tradeType.getPrice(item.getType());
-            if (price != null && price > 0) {
-                sellableItems.put(item.getType(), sellableItems.getOrDefault(item.getType(), 0) + item.getAmount());
-                totalPrice += price * item.getAmount();
+            if (offerCount == 0) {
+                player.sendMessage("§c현재 사용 가능한 교환이 없습니다.");
+            } else {
+                player.sendMessage("");
+                player.sendMessage("§e/trade §7명령어를 사용하여 교환하세요!");
             }
-        }
 
-        if (sellableItems.isEmpty()) {
-            player.sendMessage("§c" + tradeType.displayName + "§c에게 판매할 수 있는 아이템이 없습니다!");
-            return;
-        }
+            player.sendMessage("§6==========================================");
 
-        final long finalTotalPrice = totalPrice;
-        final Map<Material, Integer> finalSellableItems = new HashMap<>(sellableItems);
-
-        // 아이템 제거
-        for (Map.Entry<Material, Integer> entry : sellableItems.entrySet()) {
-            Material material = entry.getKey();
-            int amount = entry.getValue();
-            removeItemsFromInventory(player, material, amount);
-        }
-
-        // G 지급
-        plugin.getEconomyManager().addMoney(player.getUniqueId(), finalTotalPrice)
-                .thenAccept(success -> {
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (success) {
-                            // 성공 메시지
-                            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                            player.sendMessage("§a💰 아이템 판매 완료!");
-                            player.sendMessage("");
-                            player.sendMessage("§7상인: " + tradeType.displayName);
-
-                            // 판매된 아이템 목록 표시
-                            player.sendMessage("§7판매 아이템:");
-                            for (Map.Entry<Material, Integer> entry : finalSellableItems.entrySet()) {
-                                Material material = entry.getKey();
-                                int amount = entry.getValue();
-                                long itemPrice = tradeType.getPrice(material);
-                                long itemTotal = itemPrice * amount;
-
-                                player.sendMessage("§f  • " + getItemDisplayName(material) +
-                                        " x" + amount + " = §6" + formatMoney(itemTotal) + "G");
-                            }
-
-                            player.sendMessage("");
-                            player.sendMessage("§7총 수입: §6" + formatMoney(finalTotalPrice) + "G");
-                            player.sendMessage("§a━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-                            // 사운드 효과
-                            player.playSound(player.getLocation(),
-                                    org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP,
-                                    1.0f, 1.2f);
-
-                            plugin.getLogger().info(String.format("[NPC거래] %s: %s에게 %dG 판매",
-                                    player.getName(), tradeType.name(), finalTotalPrice));
-                        } else {
-                            player.sendMessage("§c거래 처리 중 오류가 발생했습니다!");
-
-                            // 실패 시 아이템 복구
-                            for (Map.Entry<Material, Integer> entry : finalSellableItems.entrySet()) {
-                                Material material = entry.getKey();
-                                int amount = entry.getValue();
-                                ItemStack restoreItem = new ItemStack(material, amount);
-                                addItemSafely(player, restoreItem);
-                            }
-
-                            player.sendMessage("§7아이템이 복구되었습니다.");
-                        }
-                    });
-                }).exceptionally(throwable -> {
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        player.sendMessage("§c거래 처리 중 오류 발생: " + throwable.getMessage());
-
-                        // 오류 시 아이템 복구
-                        for (Map.Entry<Material, Integer> entry : finalSellableItems.entrySet()) {
-                            Material material = entry.getKey();
-                            int amount = entry.getValue();
-                            ItemStack restoreItem = new ItemStack(material, amount);
-                            addItemSafely(player, restoreItem);
-                        }
-
-                        player.sendMessage("§7아이템이 복구되었습니다.");
-                    });
-                    plugin.getLogger().severe("NPC 거래 오류: " + throwable.getMessage());
-                    return null;
-                });
-
-        player.closeInventory();
-    }
-
-    /**
-     * 아이템을 안전하게 인벤토리에 추가
-     */
-    private void addItemSafely(Player player, ItemStack item) {
-        if (player.getInventory().firstEmpty() != -1) {
-            player.getInventory().addItem(item);
-        } else {
-            // 인벤토리가 가득 찬 경우 바닥에 드롭
-            player.getWorld().dropItemNaturally(player.getLocation(), item);
-            player.sendMessage("§e인벤토리가 가득 차서 " + getItemDisplayName(item.getType()) +
-                    " §ex" + item.getAmount() + "§e이(가) 바닥에 떨어졌습니다.");
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "교환 메뉴 열기 실패: " + player.getName(), e);
+            player.sendMessage("§c교환 메뉴를 열 수 없습니다.");
         }
     }
 
     /**
-     * 인벤토리에서 특정 아이템 제거
+     * 교환 실행
      */
-    private void removeItemsFromInventory(Player player, Material material, int amount) {
-        int remaining = amount;
+    public boolean executeTrade(Player player, String tradeId) {
+        try {
+            TradeOffer offer = tradeOffers.get(tradeId);
+            if (offer == null) {
+                player.sendMessage("§c존재하지 않는 교환입니다: " + tradeId);
+                return false;
+            }
 
-        for (int i = 0; i < player.getInventory().getSize() && remaining > 0; i++) {
-            ItemStack item = player.getInventory().getItem(i);
-            if (item != null && item.getType() == material) {
-                int removeAmount = Math.min(remaining, item.getAmount());
+            // 교환 조건 확인
+            if (offer.requiredItem != null) {
+                if (!hasRequiredItem(player, offer.requiredItem)) {
+                    player.sendMessage("§c필요한 아이템이 부족합니다: " +
+                            getItemDisplayName(offer.requiredItem));
+                    return false;
+                }
+            }
 
-                if (removeAmount >= item.getAmount()) {
-                    player.getInventory().setItem(i, null);
-                } else {
-                    item.setAmount(item.getAmount() - removeAmount);
+            if (offer.requiredMoney > 0) {
+                CompletableFuture<Boolean> hasMoneyFuture = economyManager.hasEnoughMoney(
+                        player.getUniqueId(), offer.requiredMoney);
+
+                if (!hasMoneyFuture.join()) {
+                    player.sendMessage("§c돈이 부족합니다: " +
+                            economyManager.formatMoney(offer.requiredMoney) + "G");
+                    return false;
+                }
+            }
+
+            // 교환 실행
+            boolean success = performTrade(player, offer);
+
+            if (success) {
+                // 교환 로그 기록
+                logTrade(player, offer, tradeId);
+
+                player.sendMessage("§a교환이 완료되었습니다: " + offer.displayName);
+                player.playSound(player.getLocation(),
+                        org.bukkit.Sound.ENTITY_VILLAGER_YES, 1.0f, 1.0f);
+            }
+
+            return success;
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "교환 실행 중 오류: " + player.getName(), e);
+            player.sendMessage("§c교환 중 오류가 발생했습니다.");
+            return false;
+        }
+    }
+
+    /**
+     * 실제 교환 수행
+     */
+    private boolean performTrade(Player player, TradeOffer offer) {
+        try {
+            // 아이템 차감
+            if (offer.requiredItem != null) {
+                player.getInventory().removeItem(offer.requiredItem);
+            }
+
+            // 돈 차감
+            if (offer.requiredMoney > 0) {
+                economyManager.removeMoney(player.getUniqueId(), offer.requiredMoney);
+            }
+
+            // 아이템 지급
+            if (offer.rewardItem != null) {
+                HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(offer.rewardItem);
+
+                // 인벤토리가 가득 찬 경우 바닥에 드롭
+                for (ItemStack item : overflow.values()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), item);
+                }
+            }
+
+            // 돈 지급
+            if (offer.rewardMoney > 0) {
+                economyManager.addMoney(player.getUniqueId(), offer.rewardMoney);
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "교환 수행 중 오류", e);
+            return false;
+        }
+    }
+
+    /**
+     * 필요 아이템 확인
+     */
+    private boolean hasRequiredItem(Player player, ItemStack required) {
+        return player.getInventory().containsAtLeast(required, required.getAmount());
+    }
+
+    /**
+     * 교환 로그 기록
+     */
+    private void logTrade(Player player, TradeOffer offer, String tradeId) {
+        CompletableFuture.runAsync(() -> {
+            try (Connection connection = databaseManager.getConnection();
+                 PreparedStatement stmt = connection.prepareStatement(
+                         "INSERT INTO npc_trade_log (npc_id, player_uuid, player_name, trade_type, " +
+                                 "item_given, item_received) VALUES (?, ?, ?, ?, ?, ?)")) {
+
+                stmt.setString(1, tradeId);
+                stmt.setString(2, player.getUniqueId().toString());
+                stmt.setString(3, player.getName());
+                stmt.setString(4, offer.npcType.name());
+                stmt.setString(5, offer.requiredItem != null ?
+                        getItemDisplayName(offer.requiredItem) : offer.requiredMoney + "G");
+                stmt.setString(6, offer.rewardItem != null ?
+                        getItemDisplayName(offer.rewardItem) : offer.rewardMoney + "G");
+
+                stmt.executeUpdate();
+
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "교환 로그 기록 실패", e);
+            }
+        });
+    }
+
+    /**
+     * 교환 오퍼 추가
+     */
+    public void addTradeOffer(String id, TradeOffer offer) {
+        tradeOffers.put(id, offer);
+    }
+
+    /**
+     * 사용 가능한 교환 목록 표시
+     */
+    public void showAvailableTrades(Player player, NPCType type) {
+        try {
+            player.sendMessage("§6==========================================");
+            player.sendMessage("§e§l" + type.getDisplayName() + " 교환 목록");
+            player.sendMessage("");
+
+            int count = 0;
+            for (Map.Entry<String, TradeOffer> entry : tradeOffers.entrySet()) {
+                TradeOffer offer = entry.getValue();
+                if (offer.npcType == type) {
+                    player.sendMessage("§a" + (++count) + ". " + offer.displayName);
+
+                    if (offer.requiredItem != null) {
+                        player.sendMessage("§7   필요: " + getItemDisplayName(offer.requiredItem));
+                    }
+                    if (offer.requiredMoney > 0) {
+                        player.sendMessage("§7   비용: " + economyManager.formatMoney(offer.requiredMoney) + "G");
+                    }
+
+                    if (offer.rewardItem != null) {
+                        player.sendMessage("§7   보상: " + getItemDisplayName(offer.rewardItem));
+                    }
+                    if (offer.rewardMoney > 0) {
+                        player.sendMessage("§7   보상: " + economyManager.formatMoney(offer.rewardMoney) + "G");
+                    }
+
+                    player.sendMessage("");
+                }
+            }
+
+            if (count == 0) {
+                player.sendMessage("§c사용 가능한 교환이 없습니다.");
+            }
+
+            player.sendMessage("§6==========================================");
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "교환 목록 표시 실패: " + player.getName(), e);
+        }
+    }
+
+    /**
+     * NPC 목록 표시
+     */
+    public void showNPCList(Player player) {
+        try {
+            player.sendMessage("§6==========================================");
+            player.sendMessage("§e§l현재 활성화된 NPC 목록");
+            player.sendMessage("");
+
+            if (managedNPCs.isEmpty()) {
+                player.sendMessage("§c현재 활성화된 NPC가 없습니다.");
+            } else {
+                int count = 0;
+                for (NPCData npcData : managedNPCs.values()) {
+                    player.sendMessage(String.format("§a%d. %s §7(%s)",
+                            ++count, npcData.name, npcData.type.getDisplayName()));
+                    player.sendMessage("§7   위치: " + locationToString(npcData.location));
                 }
 
-                remaining -= removeAmount;
+                player.sendMessage("");
+                player.sendMessage("§7총 " + count + "개의 NPC가 활성화되어 있습니다.");
             }
+
+            player.sendMessage("§6==========================================");
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "NPC 목록 표시 실패: " + player.getName(), e);
         }
     }
 
     /**
-     * 가격 목록 표시
+     * 아이템 표시 이름 반환
      */
-    public void showPrices(Player player) {
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l💰 NPC 거래 가격표");
-        player.sendMessage("");
+    private String getItemDisplayName(ItemStack item) {
+        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+            return item.getItemMeta().getDisplayName();
+        }
+        return item.getType().name() + " x" + item.getAmount();
+    }
 
-        for (TradeType type : TradeType.values()) {
-            player.sendMessage(type.displayName + "§7:");
-            Map<Material, Long> prices = type.getAllPrices();
+    /**
+     * 위치를 문자열로 변환
+     */
+    private String locationToString(Location location) {
+        return String.format("%s (%.0f, %.0f, %.0f)",
+                location.getWorld().getName(),
+                location.getX(), location.getY(), location.getZ());
+    }
 
-            for (Map.Entry<Material, Long> entry : prices.entrySet()) {
-                Material material = entry.getKey();
-                Long price = entry.getValue();
-                player.sendMessage("§f  • " + getItemDisplayName(material) +
-                        ": §6" + formatMoney(price) + "G");
+    /**
+     * NPC 통계 정보
+     */
+    public String getNPCStats() {
+        return String.format("활성 NPC: %d개 | 최대: %d개 | 교환 종류: %d개",
+                managedNPCs.size(), maxNPCs, tradeOffers.size());
+    }
+
+    /**
+     * 매니저 종료
+     */
+    public void onDisable() {
+        try {
+            // 모든 NPC 제거 (필요한 경우)
+            for (NPCData npcData : managedNPCs.values()) {
+                if (npcData.entity != null && npcData.entity.isValid()) {
+                    // 일반적으로 서버 종료 시에는 엔티티를 제거하지 않음
+                    // npcData.entity.remove();
+                }
             }
-            player.sendMessage("");
-        }
 
-        player.sendMessage("§7NPC를 우클릭하여 거래하세요!");
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
+            // 캐시 정리
+            managedNPCs.clear();
+            tradeOffers.clear();
 
-    /**
-     * 상인 목록 표시
-     */
-    public void showMerchants(Player player) {
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        player.sendMessage("§e§l🏪 NPC 상인 안내");
-        player.sendMessage("");
+            plugin.getLogger().info("NPCTradeManager 안전하게 종료됨");
 
-        for (TradeType type : TradeType.values()) {
-            player.sendMessage(type.displayName);
-            player.sendMessage("§7" + getMerchantDescription(type));
-            player.sendMessage("");
-        }
-
-        player.sendMessage("§7/trade prices - 가격표 확인");
-        player.sendMessage("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
-
-    /**
-     * 상인 설명 반환
-     */
-    private String getMerchantDescription(TradeType type) {
-        switch (type) {
-            case MINING: return "모든 종류의 광물과 원석을 최고가에 구매합니다!";
-            case COMBAT: return "몬스터 드롭과 전투 관련 아이템을 구매합니다!";
-            case FARMING: return "농작물과 동물 재료를 구매합니다!";
-            case RARE: return "매우 희귀한 아이템을 놀라운 가격에 구매합니다!";
-            case BUILDING: return "모든 건축 재료를 대량으로 구매합니다!";
-            case REDSTONE: return "레드스톤과 기계 부품을 구매합니다!";
-            default: return "다양한 아이템을 구매합니다!";
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "NPCTradeManager 종료 중 오류", e);
         }
     }
 
-    /**
-     * 아이템 표시명 반환
-     */
-    private String getItemDisplayName(Material material) {
-        // 한글 아이템명 매핑
-        switch (material.name()) {
-            case "DIAMOND": return "다이아몬드";
-            case "EMERALD": return "에메랄드";
-            case "GOLD_INGOT": return "금 주괴";
-            case "IRON_INGOT": return "철 주괴";
-            case "COAL": return "석탄";
-            case "REDSTONE": return "레드스톤";
-            case "LAPIS_LAZULI": return "청금석";
-            case "QUARTZ": return "석영";
-            case "WHEAT": return "밀";
-            case "CARROT": return "당근";
-            case "POTATO": return "감자";
-            case "BEETROOT": return "비트루트";
-            case "SUGAR_CANE": return "사탕수수";
-            case "MELON_SLICE": return "수박 조각";
-            case "PUMPKIN": return "호박";
-            case "BEEF": return "소고기";
-            case "PORKCHOP": return "돼지고기";
-            case "CHICKEN": return "닭고기";
-            case "MUTTON": return "양고기";
-            case "LEATHER": return "가죽";
-            case "FEATHER": return "깃털";
-            case "ROTTEN_FLESH": return "썩은 살점";
-            case "BONE": return "뼈";
-            case "STRING": return "실";
-            case "SPIDER_EYE": return "거미 눈";
-            case "GUNPOWDER": return "화약";
-            case "ENDER_PEARL": return "엔더 진주";
-            case "BLAZE_ROD": return "블레이즈 막대";
-            case "GHAST_TEAR": return "가스트 눈물";
-            case "NETHER_STAR": return "네더의 별";
-            case "DRAGON_BREATH": return "드래곤 브레스";
-            case "NETHERITE_INGOT": return "네더라이트 주괴";
-            case "NETHERITE_SCRAP": return "네더라이트 조각";
-            case "ANCIENT_DEBRIS": return "고대 잔해";
-            case "WITHER_SKELETON_SKULL": return "위더 스켈레톤 머리";
-            case "DRAGON_HEAD": return "드래곤 머리";
-            case "ELYTRA": return "겉날개";
-            case "SHULKER_SHELL": return "셜커 껍질";
-            case "PHANTOM_MEMBRANE": return "팬텀 막";
-            case "HEART_OF_THE_SEA": return "바다의 심장";
-            case "NAUTILUS_SHELL": return "앵무조개 껍질";
-            default: return material.name().toLowerCase().replace("_", " ");
+    // 데이터 클래스들
+    public static class NPCData {
+        public final String npcId;
+        public final NPCType type;
+        public final String name;
+        public final Location location;
+        public final UUID createdBy;
+        public final Villager entity;
+
+        public NPCData(String npcId, NPCType type, String name, Location location,
+                       UUID createdBy, Villager entity) {
+            this.npcId = npcId;
+            this.type = type;
+            this.name = name;
+            this.location = location;
+            this.createdBy = createdBy;
+            this.entity = entity;
         }
     }
 
-    /**
-     * 금액 포맷팅
-     */
-    private String formatMoney(long amount) {
-        if (amount >= 1000000) {
-            return String.format("%.1fM", amount / 1000000.0);
-        } else if (amount >= 1000) {
-            return String.format("%.1fK", amount / 1000.0);
-        } else {
-            return String.valueOf(amount);
+    public static class TradeOffer {
+        public final String displayName;
+        public final ItemStack requiredItem;
+        public final ItemStack rewardItem;
+        public final long requiredMoney;
+        public final long rewardMoney;
+        public final NPCType npcType;
+
+        public TradeOffer(String displayName, ItemStack requiredItem, ItemStack rewardItem,
+                          long money, NPCType npcType) {
+            this.displayName = displayName;
+            this.requiredItem = requiredItem;
+            this.rewardItem = rewardItem;
+
+            if (money > 0) {
+                this.requiredMoney = 0;
+                this.rewardMoney = money;
+            } else {
+                this.requiredMoney = Math.abs(money);
+                this.rewardMoney = 0;
+            }
+
+            this.npcType = npcType;
         }
+    }
+
+    // Getter 메서드들
+    public int getMaxNPCs() {
+        return maxNPCs;
+    }
+
+    public int getCurrentNPCCount() {
+        return managedNPCs.size();
+    }
+
+    public Set<NPCType> getAvailableTypes() {
+        return EnumSet.allOf(NPCType.class);
     }
 }
