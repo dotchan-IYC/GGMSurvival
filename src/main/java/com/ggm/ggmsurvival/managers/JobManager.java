@@ -1,27 +1,24 @@
-// 완전 안정화된 JobManager.java
+// 수정된 JobManager.java - ScoreboardIntegration 타입 충돌 해결
 package com.ggm.ggmsurvival.managers;
 
 import com.ggm.ggmsurvival.GGMSurvival;
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.entity.Arrow;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.sql.Connection;
@@ -53,7 +50,7 @@ public class JobManager implements Listener {
     private BukkitTask expBarUpdateTask;
     private final Set<UUID> playersNeedingExpUpdate = ConcurrentHashMap.newKeySet();
 
-    // 스코어보드 통합
+    // 스코어보드 통합 - 타입 충돌 해결
     private ScoreboardIntegration scoreboardIntegration;
 
     // 성능 최적화를 위한 캐시
@@ -114,14 +111,6 @@ public class JobManager implements Listener {
         public String getColor() {
             return "§" + colorCode;
         }
-    }
-
-    /**
-     * 스코어보드 통합 인터페이스
-     */
-    public interface ScoreboardIntegration {
-        void notifyJobChange(Player player);
-        void notifyLevelUp(Player player);
     }
 
     /**
@@ -204,637 +193,144 @@ public class JobManager implements Listener {
     }
 
     /**
-     * 스코어보드 통합 초기화
+     * 스코어보드 통합 초기화 - 타입 충돌 해결
      */
     private void initializeScoreboardIntegration() {
-        this.scoreboardIntegration = new ScoreboardIntegration() {
-            @Override
-            public void notifyJobChange(Player player) {
-                // GGMCore의 스코어보드 업데이트 (있다면)
-                if (plugin.getScoreboardIntegration() != null) {
-                    try {
-                        plugin.getScoreboardIntegration().notifyJobChange(player);
-                    } catch (Exception e) {
-                        plugin.getLogger().log(Level.WARNING,
-                                "스코어보드 직업 변경 알림 실패: " + player.getName(), e);
-                    }
-                }
-            }
-
-            @Override
-            public void notifyLevelUp(Player player) {
-                if (plugin.getScoreboardIntegration() != null) {
-                    try {
-                        plugin.getScoreboardIntegration().notifyLevelUp(player);
-                    } catch (Exception e) {
-                        plugin.getLogger().log(Level.WARNING,
-                                "스코어보드 레벨업 알림 실패: " + player.getName(), e);
-                    }
-                }
-            }
-        };
+        try {
+            // 별도의 ScoreboardIntegration 클래스 사용
+            this.scoreboardIntegration = new ScoreboardIntegration(plugin);
+            plugin.getLogger().info("스코어보드 통합 초기화 완료");
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "스코어보드 통합 초기화 실패", e);
+            this.scoreboardIntegration = null;
+        }
     }
 
     /**
      * 경험치바 업데이트 태스크 시작
      */
     private void startExpBarUpdateTask() {
-        expBarUpdateTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (plugin.isShuttingDown()) {
-                    cancel();
-                    return;
-                }
+        expBarUpdateTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (!playersNeedingExpUpdate.isEmpty()) {
+                Set<UUID> toUpdate = new HashSet<>(playersNeedingExpUpdate);
+                playersNeedingExpUpdate.clear();
 
-                try {
-                    // 업데이트가 필요한 플레이어들만 처리
-                    Iterator<UUID> iterator = playersNeedingExpUpdate.iterator();
-                    while (iterator.hasNext()) {
-                        UUID uuid = iterator.next();
-                        Player player = Bukkit.getPlayer(uuid);
-
-                        if (player != null && player.isOnline()) {
-                            updatePlayerExpBarSafe(player);
-                        }
-
-                        iterator.remove();
+                for (UUID uuid : toUpdate) {
+                    Player player = Bukkit.getPlayer(uuid);
+                    if (player != null && player.isOnline()) {
+                        updateExpBar(player);
                     }
-
-                } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING, "경험치바 업데이트 중 오류", e);
                 }
             }
-        }.runTaskTimer(plugin, 20L, 20L); // 1초마다 실행
+        }, 20L, 20L); // 1초마다
     }
 
     /**
-     * 플레이어 접속 이벤트
+     * 플레이어 접속 처리
      */
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        try {
-            // 비동기로 플레이어 데이터 로드
-            CompletableFuture.runAsync(() -> loadPlayerJobData(player))
-                    .thenRun(() -> {
-                        // 메인 스레드에서 효과 적용
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            applyJobEffects(player);
-                            markForExpUpdate(player);
-                        });
-                    })
-                    .exceptionally(throwable -> {
-                        plugin.getLogger().log(Level.WARNING,
-                                "플레이어 직업 데이터 로드 실패: " + player.getName(), throwable);
-                        return null;
+        // 비동기로 데이터 로드
+        CompletableFuture.runAsync(() -> loadPlayerJobData(player))
+                .thenRun(() -> {
+                    // 메인 스레드에서 효과 적용
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        applyJobEffects(player);
+                        markForExpUpdate(player);
                     });
-
-            // 직업 선택 안내 (지연)
-            scheduleJobSelectionReminder(player);
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "플레이어 접속 처리 중 오류: " + player.getName(), e);
-        }
+                });
     }
 
     /**
-     * 플레이어 퇴장 이벤트
+     * 플레이어 퇴장 처리
      */
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        try {
-            // 비동기로 데이터 저장
-            CompletableFuture.runAsync(() -> savePlayerJobData(player));
+        // 비동기로 데이터 저장
+        CompletableFuture.runAsync(() -> savePlayerJobData(player));
 
-            // 패시브 효과 정리
-            removeArcherSpeedBonus(player);
+        // 캐시에서 제거
+        playersNeedingExpUpdate.remove(uuid);
+        cachedActionBars.remove(uuid);
+        lastExpGainTime.remove(uuid);
 
-            // 캐시에서 제거
-            jobTypes.remove(uuid);
-            jobLevels.remove(uuid);
-            jobExperience.remove(uuid);
-            shieldDefenseCooldown.remove(uuid);
-            lastExpGainTime.remove(uuid);
-            cachedActionBars.remove(uuid);
-            playersNeedingExpUpdate.remove(uuid);
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "플레이어 퇴장 처리 중 오류: " + player.getName(), e);
-        }
+        // 궁수 효과 제거
+        removeArcherSpeedBonus(player);
     }
 
     /**
-     * 몬스터 처치 이벤트 - 경험치 획득
+     * 몬스터 처치 경험치 획득
      */
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
-        LivingEntity entity = event.getEntity();
-        Player killer = entity.getKiller();
+        if (!(event.getEntity().getKiller() instanceof Player)) return;
 
-        if (killer == null || getJobType(killer) == JobType.NONE) return;
+        Player killer = event.getEntity().getKiller();
+        EntityType entityType = event.getEntity().getType();
 
-        try {
-            int exp = monsterExp.getOrDefault(entity.getType(), 0);
-            if (exp > 0) {
-                // 중복 경험치 획득 방지 (1초 쿨다운)
-                long currentTime = System.currentTimeMillis();
-                Long lastTime = lastExpGainTime.get(killer.getUniqueId());
-
-                if (lastTime != null && currentTime - lastTime < 1000) {
-                    return; // 쿨다운 중
-                }
-
-                lastExpGainTime.put(killer.getUniqueId(), currentTime);
-                addJobExperience(killer, exp, entity.getType());
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "몬스터 처치 경험치 처리 중 오류: " + killer.getName(), e);
+        // 직업이 있는 경우에만 경험치 지급
+        if (getJobType(killer) != JobType.NONE) {
+            int expGain = monsterExp.getOrDefault(entityType, 5);
+            addJobExperience(killer, expGain, entityType);
         }
     }
 
     /**
-     * 방패 방어 이벤트 - 탱커 패시브
+     * 방패 방어 (탱커 특수 효과)
      */
     @EventHandler(priority = EventPriority.HIGH)
     public void onShieldDefense(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player player)) return;
+        if (!(event.getEntity() instanceof Player)) return;
 
-        try {
-            if (getJobType(player) != JobType.TANK) return;
-            if (getJobLevel(player) < 5) return;
+        Player player = (Player) event.getEntity();
 
-            ItemStack mainHand = player.getInventory().getItemInMainHand();
-            ItemStack offHand = player.getInventory().getItemInOffHand();
+        if (getJobType(player) != JobType.TANK) return;
+        if (getJobLevel(player) < 5) return;
 
-            boolean hasShield = mainHand.getType() == Material.SHIELD ||
-                    offHand.getType() == Material.SHIELD;
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        ItemStack offHand = player.getInventory().getItemInOffHand();
 
-            if (!hasShield) return;
+        // 방패를 들고 있는지 확인
+        boolean hasShield = (mainHand.getType() == Material.SHIELD) ||
+                (offHand.getType() == Material.SHIELD);
 
-            // 방패 방어 확률 체크 (방패 효과)
-            if (ThreadLocalRandom.current().nextDouble() < 0.3) { // 30% 확률
-                UUID uuid = player.getUniqueId();
-                long currentTime = System.currentTimeMillis();
+        if (!hasShield) return;
 
-                Long lastDefense = shieldDefenseCooldown.get(uuid);
-                if (lastDefense != null && currentTime - lastDefense < 3000) {
-                    return; // 3초 쿨다운
-                }
-
-                shieldDefenseCooldown.put(uuid, currentTime);
-
-                // 체력 회복
-                double healAmount = plugin.getConfig().getDouble("job_system.jobs.tank.shield_heal_amount", 1.0);
-                double currentHealth = player.getHealth();
-                double maxHealth = player.getMaxHealth();
-
-                if (currentHealth < maxHealth) {
-                    player.setHealth(Math.min(maxHealth, currentHealth + healAmount));
-
-                    // 메시지 표시
-                    String message = plugin.getConfig().getString("messages.tank_shield_heal",
-                                    "방패 방어! +{amount} 체력 회복")
-                            .replace("{amount}", String.valueOf((int)healAmount));
-
-                    player.sendActionBar("§9" + message);
-                }
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "방패 방어 처리 중 오류: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 검 공격 이벤트 - 검사 패시브
-     */
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onSwordAttack(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player player)) return;
-
-        try {
-            if (getJobType(player) != JobType.WARRIOR) return;
-
-            ItemStack weapon = player.getInventory().getItemInMainHand();
-            if (!isSword(weapon.getType())) return;
-
-            int level = getJobLevel(player);
-
-            // 레벨 10 크리티컬 효과
-            if (level >= 10) {
-                int criticalChance = plugin.getConfig().getInt("job_system.jobs.warrior.level10_critical_chance", 10);
-
-                if (ThreadLocalRandom.current().nextInt(100) < criticalChance) {
-                    double multiplier = plugin.getConfig().getDouble("job_system.jobs.warrior.critical_multiplier", 2.5);
-                    event.setDamage(event.getDamage() * multiplier);
-
-                    String message = plugin.getConfig().getString("messages.warrior_critical_hit",
-                            "크리티컬 발동! 2.5배 데미지!");
-                    player.sendActionBar("§c" + message);
-                }
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "검 공격 처리 중 오류: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 활 발사 이벤트 - 궁수 패시브
-     */
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onBowShoot(EntityShootBowEvent event) {
-        if (!(event.getEntity() instanceof Player player)) return;
-
-        try {
-            if (getJobType(player) != JobType.ARCHER) return;
-            if (getJobLevel(player) < 10) return;
-
-            // 10레벨 트리플 샷
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                try {
-                    Arrow originalArrow = (Arrow) event.getProjectile();
-
-                    // 추가 화살 2발 발사
-                    for (int i = 0; i < 2; i++) {
-                        Arrow extraArrow = player.launchProjectile(Arrow.class, originalArrow.getVelocity());
-                        extraArrow.setShooter(player);
-
-                        // 약간의 각도 변화
-                        double angleOffset = (i + 1) * 0.1 * (i % 2 == 0 ? 1 : -1);
-                        extraArrow.setVelocity(extraArrow.getVelocity().rotateAroundY(angleOffset));
-                    }
-
-                    String message = plugin.getConfig().getString("messages.archer_triple_shot",
-                            "트리플 샷! 화살 3발 발사!");
-                    player.sendActionBar("§a" + message);
-
-                } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING,
-                            "트리플 샷 처리 중 오류: " + player.getName(), e);
-                }
-            }, 1L);
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "활 발사 처리 중 오류: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 직업 경험치 추가 - Thread-Safe
-     */
-    public void addJobExperience(Player player, int exp, EntityType monster) {
         UUID uuid = player.getUniqueId();
+        long currentTime = System.currentTimeMillis();
 
-        synchronized (this) { // 동기화로 데이터 일관성 보장
-            int currentLevel = getJobLevel(player);
-            int currentExp = getJobExperience(player);
+        // 쿨다운 체크 (3초)
+        if (shieldDefenseCooldown.containsKey(uuid)) {
+            long lastUse = shieldDefenseCooldown.get(uuid);
+            if (currentTime - lastUse < 3000) return;
+        }
 
-            if (currentLevel >= 10) return; // 만렙
+        // 30% 확률로 방어 성공
+        if (ThreadLocalRandom.current().nextInt(100) < 30) {
+            event.setCancelled(true);
 
-            int newExp = currentExp + exp;
-            jobExperience.put(uuid, newExp);
+            // 체력 회복 (2하트)
+            double currentHealth = player.getHealth();
+            double maxHealth = player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue();
+            double newHealth = Math.min(currentHealth + 4.0, maxHealth);
+            player.setHealth(newHealth);
 
-            // 레벨업 확인
-            int requiredExp = expRequirements.getOrDefault(currentLevel + 1, Integer.MAX_VALUE);
+            // 효과 및 메시지
+            player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1, 0), 5);
+            player.playSound(player.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1.0f, 1.0f);
+            player.sendMessage(plugin.getConfig().getString("messages.tank_shield_heal", "§9방패 방어! §a+4 체력 회복"));
 
-            if (newExp >= requiredExp && currentLevel < 10) {
-                levelUpJob(player);
-            }
-
-            // 비동기로 데이터 저장
-            CompletableFuture.runAsync(() -> savePlayerJobData(player));
-
-            // 경험치바 업데이트 마크
-            markForExpUpdate(player);
-
-            // 경험치 획득 메시지 (타이틀로)
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    player.sendTitle("§a+ " + exp + " 경험치",
-                            "§7" + monster.name(), 5, 20, 5);
-                } catch (Exception e) {
-                    plugin.getLogger().log(Level.WARNING,
-                            "경험치 메시지 표시 실패: " + player.getName(), e);
-                }
-            });
+            // 쿨다운 설정
+            shieldDefenseCooldown.put(uuid, currentTime);
         }
     }
 
-    /**
-     * 직업 레벨업 - 메인 스레드에서 실행
-     */
-    private void levelUpJob(Player player) {
-        UUID uuid = player.getUniqueId();
-        int currentLevel = getJobLevel(player);
-        int newLevel = currentLevel + 1;
-
-        jobLevels.put(uuid, newLevel);
-
-        // 메인 스레드에서 UI 업데이트
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            try {
-                // 레벨업 메시지
-                player.sendMessage("§6==========================================");
-                player.sendMessage("§e직업 레벨업! §f" + currentLevel + " → " + newLevel);
-                player.sendMessage("§7직업 능력이 강화되었습니다!");
-
-                // 특수 레벨 메시지
-                if (newLevel == 5) {
-                    player.sendMessage("§a레벨 5 달성! 특수 능력이 해제되었습니다!");
-                } else if (newLevel == 10) {
-                    String message = plugin.getConfig().getString("messages.job_max_level",
-                            "만렙 10 달성! 최강의 능력을 얻었습니다!");
-                    player.sendMessage("§6" + message);
-
-                    // 직업별 만렙 메시지
-                    JobType job = getJobType(player);
-                    switch (job) {
-                        case TANK:
-                            String tankMsg = plugin.getConfig().getString("messages.tank_max_level_effect",
-                                    "탱커 만렙: 흉갑 착용시 체력 +4칸 (28HP)");
-                            player.sendMessage("§9" + tankMsg);
-                            break;
-                        case WARRIOR:
-                            player.sendMessage("§c검사 만렙: 검 공격시 10% 크리티컬 확률!");
-                            break;
-                        case ARCHER:
-                            player.sendMessage("§a궁수 만렙: 활 발사시 화살 3발 동시 발사!");
-                            break;
-                    }
-                }
-
-                player.sendMessage("§6==========================================");
-
-                // 효과음
-                player.playSound(player.getLocation(),
-                        org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-
-                // 직업 효과 재적용
-                applyJobEffects(player);
-
-                // 스코어보드 업데이트
-                if (scoreboardIntegration != null) {
-                    scoreboardIntegration.notifyLevelUp(player);
-                }
-
-            } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING,
-                        "레벨업 처리 중 오류: " + player.getName(), e);
-            }
-        });
-    }
-
-    /**
-     * 직업 효과 적용 - 메인 스레드에서만 호출
-     */
-    public void applyJobEffects(Player player) {
-        try {
-            JobType job = getJobType(player);
-            int level = getJobLevel(player);
-
-            if (job == JobType.NONE) return;
-
-            // 탱커 체력 보너스
-            if (job == JobType.TANK && level >= 5) {
-                applyTankHealthBonus(player, level);
-            }
-
-            // 궁수 이동속도 보너스 (가죽장화 착용 시)
-            if (job == JobType.ARCHER && level >= 5) {
-                checkAndApplyArcherSpeedBonus(player);
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "직업 효과 적용 중 오류: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 탱커 체력 보너스 적용
-     */
-    private void applyTankHealthBonus(Player player, int level) {
-        try {
-            ItemStack chestplate = player.getInventory().getChestplate();
-            if (chestplate == null || !chestplate.getType().name().contains("CHESTPLATE")) {
-                return;
-            }
-
-            AttributeInstance healthAttr = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
-            if (healthAttr == null) return;
-
-            // 기존 탱커 보너스 제거
-            healthAttr.getModifiers().stream()
-                    .filter(mod -> mod.getName().equals("tank_health_bonus"))
-                    .findFirst()
-                    .ifPresent(healthAttr::removeModifier);
-
-            // 새 보너스 적용
-            double healthBonus = level >= 10 ? 8.0 : 4.0; // 10레벨: +4칸, 5레벨: +2칸
-
-            UUID modifierUUID = UUID.nameUUIDFromBytes("tank_health_bonus".getBytes());
-            AttributeModifier healthModifier = new AttributeModifier(
-                    modifierUUID,
-                    "tank_health_bonus",
-                    healthBonus,
-                    AttributeModifier.Operation.ADD_NUMBER
-            );
-
-            healthAttr.addModifier(healthModifier);
-
-            // 현재 체력이 새로운 최대 체력을 초과하지 않도록 조정
-            if (player.getHealth() > healthAttr.getValue()) {
-                player.setHealth(healthAttr.getValue());
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "탱커 체력 보너스 적용 실패: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 궁수 이동속도 보너스 확인 및 적용
-     */
-    private void checkAndApplyArcherSpeedBonus(Player player) {
-        try {
-            ItemStack boots = player.getInventory().getBoots();
-            boolean hasLeatherBoots = boots != null && boots.getType() == Material.LEATHER_BOOTS;
-
-            AttributeInstance speedAttr = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-            if (speedAttr == null) return;
-
-            // 기존 궁수 속도 보너스 제거
-            speedAttr.getModifiers().stream()
-                    .filter(mod -> mod.getName().equals("archer_leather_boots_speed"))
-                    .findFirst()
-                    .ifPresent(speedAttr::removeModifier);
-
-            // 가죽장화 착용 시 속도 보너스 적용
-            if (hasLeatherBoots) {
-                applyArcherSpeedBonus(player);
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "궁수 속도 보너스 확인 실패: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 궁수 패시브 이동속도 보너스 적용
-     */
-    private void applyArcherSpeedBonus(Player player) {
-        try {
-            AttributeInstance attribute = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-            if (attribute == null) return;
-
-            UUID modifierUUID = UUID.nameUUIDFromBytes(archerSpeedKey.toString().getBytes());
-
-            AttributeModifier speedModifier = new AttributeModifier(
-                    modifierUUID,
-                    "archer_leather_boots_speed",
-                    0.02, // 20% 증가
-                    AttributeModifier.Operation.ADD_NUMBER
-            );
-
-            attribute.addModifier(speedModifier);
-
-            String message = plugin.getConfig().getString("messages.archer_speed_boost",
-                    "가죽장화 패시브: 이동속도 +20%");
-            player.sendActionBar("§a" + message);
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "궁수 속도 보너스 적용 실패: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 궁수 패시브 이동속도 보너스 제거
-     */
-    private void removeArcherSpeedBonus(Player player) {
-        try {
-            AttributeInstance attribute = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-            if (attribute == null) return;
-
-            attribute.getModifiers().stream()
-                    .filter(modifier -> modifier.getName().equals("archer_leather_boots_speed"))
-                    .findFirst()
-                    .ifPresent(attribute::removeModifier);
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "궁수 속도 보너스 제거 실패: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 경험치바 업데이트 마크
-     */
-    private void markForExpUpdate(Player player) {
-        playersNeedingExpUpdate.add(player.getUniqueId());
-    }
-
-    /**
-     * 안전한 경험치바 업데이트
-     */
-    private void updatePlayerExpBarSafe(Player player) {
-        try {
-            JobType job = getJobType(player);
-            int level = getJobLevel(player);
-            int exp = getJobExperience(player);
-
-            if (job == JobType.NONE) {
-                player.setLevel(0);
-                player.setExp(0.0f);
-                return;
-            }
-
-            if (level >= 10) {
-                player.setLevel(10);
-                player.setExp(1.0f);
-
-                String actionBar = String.format("%s%s §7MAX LEVEL §6✨",
-                        job.getColor(), job.getDisplayName());
-
-                // 캐시된 액션바와 비교하여 불필요한 업데이트 방지
-                String cached = cachedActionBars.get(player.getUniqueId());
-                if (!actionBar.equals(cached)) {
-                    player.sendActionBar(actionBar);
-                    cachedActionBars.put(player.getUniqueId(), actionBar);
-                }
-            } else {
-                int currentLevelExp = expRequirements.getOrDefault(level, 0);
-                int nextLevelExp = expRequirements.getOrDefault(level + 1, 1000);
-                int remainingExp = Math.max(0, exp - currentLevelExp);
-                int expForNextLevel = nextLevelExp - currentLevelExp;
-
-                player.setLevel(level);
-                float expProgress = Math.min(1.0f, (float) remainingExp / expForNextLevel);
-                player.setExp(expProgress);
-
-                String actionBar = String.format("%s%s §7Lv.%d §f[§a%d§7/§e%d§f] §7다음 레벨까지 §c%d경험치",
-                        job.getColor(), job.getDisplayName(), level, remainingExp, expForNextLevel,
-                        expForNextLevel - remainingExp);
-
-                String cached = cachedActionBars.get(player.getUniqueId());
-                if (!actionBar.equals(cached)) {
-                    player.sendActionBar(actionBar);
-                    cachedActionBars.put(player.getUniqueId(), actionBar);
-                }
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "경험치바 업데이트 실패: " + player.getName(), e);
-        }
-    }
-
-    /**
-     * 직업 선택 안내 스케줄
-     */
-    private void scheduleJobSelectionReminder(Player player) {
-        if (!plugin.getConfig().getBoolean("job_system.force_job_selection", true)) {
-            return;
-        }
-
-        int delay = plugin.getConfig().getInt("job_system.job_selection_delay", 60);
-
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline() && getJobType(player) == JobType.NONE) {
-                player.sendMessage("§6==========================================");
-                player.sendMessage("§e직업을 선택하세요!");
-                player.sendMessage("§7직업을 선택하면 전투에서 더 강해집니다!");
-                player.sendMessage("§7몬스터를 처치하여 직업 레벨을 올리세요!");
-                player.sendMessage("§6새로운 기능: §f경험치바 UI & 10렙 만렙 효과!");
-                player.sendMessage("§a명령어: §f/job select");
-                player.sendMessage("§6==========================================");
-            }
-        }, delay * 20L);
-    }
-
-    /**
-     * 검인지 확인
-     */
-    private boolean isSword(Material material) {
-        return material.name().contains("SWORD");
-    }
-
-    // Public API 메서드들
+    // === Getter/Setter 메서드들 ===
 
     public JobType getJobType(Player player) {
         return jobTypes.getOrDefault(player.getUniqueId(), JobType.NONE);
@@ -848,13 +344,15 @@ public class JobManager implements Listener {
         return jobExperience.getOrDefault(player.getUniqueId(), 0);
     }
 
-    public boolean setJobType(Player player, JobType job) {
-        if (getJobType(player) != JobType.NONE) {
-            return false; // 이미 직업이 있음
-        }
+    // === 직업 관리 메서드들 ===
 
+    public boolean setJobType(Player player, JobType jobType) {
         UUID uuid = player.getUniqueId();
-        jobTypes.put(uuid, job);
+
+        // 기존 효과 제거
+        removeArcherSpeedBonus(player);
+
+        jobTypes.put(uuid, jobType);
         jobLevels.put(uuid, 1);
         jobExperience.put(uuid, 0);
 
@@ -874,124 +372,208 @@ public class JobManager implements Listener {
         return true;
     }
 
-    public void resetJob(Player player) {
-        UUID uuid = player.getUniqueId();
-        jobTypes.put(uuid, JobType.NONE);
-        jobLevels.put(uuid, 1);
-        jobExperience.put(uuid, 0);
+    public void addJobExperience(Player player, int exp, EntityType source) {
+        if (getJobType(player) == JobType.NONE) return;
 
-        // 모든 직업 효과 제거
+        UUID uuid = player.getUniqueId();
+        long currentTime = System.currentTimeMillis();
+
+        // 경험치 중복 지급 방지 (1초 쿨다운)
+        if (lastExpGainTime.containsKey(uuid)) {
+            long lastGain = lastExpGainTime.get(uuid);
+            if (currentTime - lastGain < 1000) return;
+        }
+
+        int currentExp = getJobExperience(player);
+        int currentLevel = getJobLevel(player);
+
+        if (currentLevel >= 10) return; // 만렙
+
+        int newExp = currentExp + exp;
+        jobExperience.put(uuid, newExp);
+        lastExpGainTime.put(uuid, currentTime);
+
+        // 레벨업 체크
+        int requiredExp = expRequirements.getOrDefault(currentLevel + 1, Integer.MAX_VALUE);
+        if (newExp >= requiredExp && currentLevel < 10) {
+            levelUp(player);
+        }
+
+        // 경험치바 업데이트 예약
+        markForExpUpdate(player);
+
+        // ActionBar 표시
+        String entityName = getEntityDisplayName(source);
+        String message = String.format("§a+%d 경험치 §7(§e%s§7)", exp, entityName);
+        player.sendActionBar(message);
+    }
+
+    private void levelUp(Player player) {
+        UUID uuid = player.getUniqueId();
+        int newLevel = getJobLevel(player) + 1;
+
+        jobLevels.put(uuid, newLevel);
+        jobExperience.put(uuid, 0); // 경험치 초기화
+
+        // 효과 적용
+        applyJobEffects(player);
+
+        // 레벨업 메시지 및 효과
+        player.sendMessage("§6★ 레벨 업! §e" + getJobType(player).getDisplayName() +
+                " §f" + newLevel + "레벨이 되었습니다!");
+        player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK,
+                player.getLocation().add(0, 1, 0), 20);
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+
+        // 5레벨, 10레벨 특수 메시지
+        if (newLevel == 5) {
+            player.sendMessage("§d✨ 특수 능력이 해제되었습니다!");
+        } else if (newLevel == 10) {
+            player.sendMessage("§6★★★ 만렙 달성! 최고의 " +
+                    getJobType(player).getDisplayName() + "가 되었습니다! ★★★");
+        }
+
+        // 스코어보드 알림
+        if (scoreboardIntegration != null) {
+            scoreboardIntegration.notifyLevelUp(player);
+        }
+
+        // 비동기로 저장
+        CompletableFuture.runAsync(() -> savePlayerJobData(player));
+    }
+
+    private void applyJobEffects(Player player) {
+        JobType job = getJobType(player);
+        int level = getJobLevel(player);
+
         try {
+            // 기본 체력 초기화
             AttributeInstance healthAttr = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
             if (healthAttr != null) {
                 healthAttr.setBaseValue(20.0);
             }
 
-            if (player.getHealth() > 20.0) {
-                player.setHealth(20.0);
-            }
-
+            // 기존 효과 제거
             removeArcherSpeedBonus(player);
 
-            player.setLevel(0);
-            player.setExp(0.0f);
+            // 직업별 효과 적용
+            switch (job) {
+                case TANK:
+                    // 탱커: 추가 체력
+                    if (healthAttr != null) {
+                        double bonusHealth = level * 2.0; // 레벨당 1하트씩
+                        healthAttr.setBaseValue(20.0 + bonusHealth);
+
+                        if (player.getHealth() < healthAttr.getValue()) {
+                            player.setHealth(healthAttr.getValue());
+                        }
+                    }
+                    break;
+
+                case ARCHER:
+                    // 궁수: 가죽 신발 착용 시 속도 증가
+                    applyArcherSpeedBonus(player);
+                    break;
+
+                case WARRIOR:
+                    // 전사: 기본 효과 (검 공격 시 적용)
+                    break;
+            }
 
         } catch (Exception e) {
             plugin.getLogger().log(Level.WARNING,
-                    "직업 초기화 중 오류: " + player.getName(), e);
-        }
-
-        // 비동기로 저장
-        CompletableFuture.runAsync(() -> savePlayerJobData(player));
-
-        if (scoreboardIntegration != null) {
-            scoreboardIntegration.notifyJobChange(player);
+                    "직업 효과 적용 실패: " + player.getName(), e);
         }
     }
 
-    public void setJobLevel(Player player, int level) {
-        if (level < 1 || level > 10) return;
+    private void applyArcherSpeedBonus(Player player) {
+        ItemStack boots = player.getInventory().getBoots();
 
-        UUID uuid = player.getUniqueId();
-        jobLevels.put(uuid, level);
+        if (boots != null && boots.getType() == Material.LEATHER_BOOTS) {
+            PersistentDataContainer pdc = player.getPersistentDataContainer();
+            pdc.set(archerSpeedKey, PersistentDataType.BYTE, (byte) 1);
 
-        if (level > 1) {
-            int exp = expRequirements.getOrDefault(level, 0);
-            jobExperience.put(uuid, exp);
-        } else {
-            jobExperience.put(uuid, 0);
+            player.addPotionEffect(new PotionEffect(
+                    PotionEffectType.SPEED,
+                    Integer.MAX_VALUE,
+                    0,
+                    false,
+                    false,
+                    false
+            ));
+
+            player.sendActionBar(plugin.getConfig().getString("messages.archer_speed_boost",
+                    "§a🏃 가죽장화 패시브: 이동속도 +20%"));
         }
+    }
 
-        // 비동기로 저장
-        CompletableFuture.runAsync(() -> savePlayerJobData(player));
+    private void removeArcherSpeedBonus(Player player) {
+        PersistentDataContainer pdc = player.getPersistentDataContainer();
 
-        // 메인 스레드에서 효과 적용
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            applyJobEffects(player);
-            markForExpUpdate(player);
+        if (pdc.has(archerSpeedKey, PersistentDataType.BYTE)) {
+            pdc.remove(archerSpeedKey);
+            player.removePotionEffect(PotionEffectType.SPEED);
 
-            if (scoreboardIntegration != null) {
-                scoreboardIntegration.notifyLevelUp(player);
+            if (player.isOnline()) {
+                player.sendActionBar(plugin.getConfig().getString("messages.archer_speed_removed",
+                        "§7가죽장화 패시브 효과 해제"));
             }
-        });
-
-        player.sendMessage("§a직업 레벨이 " + level + "로 설정되었습니다!");
+        }
     }
 
-    public void addJobExperience(Player player, int exp) {
-        addJobExperience(player, exp, EntityType.ZOMBIE); // 기본값
-    }
-
-    public void showJobInfo(Player player) {
-        JobType job = getJobType(player);
+    private void updateExpBar(Player player) {
         int level = getJobLevel(player);
-        int exp = getJobExperience(player);
+        int currentExp = getJobExperience(player);
 
-        player.sendMessage("§6==========================================");
-        player.sendMessage("§e직업 정보 (새로운 UI)");
-        player.sendMessage("§7직업: " + job.getColor() + job.getDisplayName());
-        player.sendMessage("§7레벨: §f" + level + " / 10" +
-                (level == 10 ? " §6✨ MAX" : ""));
-
-        if (level < 10) {
-            int currentLevelExp = expRequirements.getOrDefault(level, 0);
-            int nextLevelExp = expRequirements.getOrDefault(level + 1, 1000);
-            int remainingExp = Math.max(0, exp - currentLevelExp);
-            int expForNextLevel = nextLevelExp - currentLevelExp;
-
-            player.sendMessage("§7경험치: §a" + remainingExp + " §7/ §e" + expForNextLevel);
-            player.sendMessage("§7다음 레벨까지: §c" + (expForNextLevel - remainingExp) + " 경험치");
+        if (level >= 10) {
+            player.setLevel(10);
+            player.setExp(1.0f);
+            return;
         }
 
-        player.sendMessage("§6==========================================");
+        int requiredExp = expRequirements.getOrDefault(level + 1, 1000);
+        float progress = (float) currentExp / requiredExp;
+
+        player.setLevel(level);
+        player.setExp(Math.min(progress, 1.0f));
     }
 
-    /**
-     * 플레이어 직업 데이터 로드
-     */
-    public void loadPlayerJobData(Player player) {
-        UUID uuid = player.getUniqueId();
+    private void markForExpUpdate(Player player) {
+        playersNeedingExpUpdate.add(player.getUniqueId());
+    }
 
+    private String getEntityDisplayName(EntityType type) {
+        return switch (type) {
+            case ZOMBIE -> "좀비";
+            case SKELETON -> "스켈레톤";
+            case SPIDER -> "거미";
+            case CREEPER -> "크리퍼";
+            case ENDERMAN -> "엔더맨";
+            case ENDER_DRAGON -> "엔더 드래곤";
+            case WITHER -> "위더";
+            default -> type.name();
+        };
+    }
+
+    // === 데이터베이스 관련 메서드들 ===
+
+    private void loadPlayerJobData(Player player) {
         try (Connection connection = databaseManager.getConnection()) {
             String sql = "SELECT job_type, job_level, job_experience FROM player_jobs WHERE uuid = ?";
 
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-                stmt.setString(1, uuid.toString());
+                stmt.setString(1, player.getUniqueId().toString());
 
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
                         JobType jobType = JobType.valueOf(rs.getString("job_type"));
-                        int jobLevel = rs.getInt("job_level");
-                        int jobExp = rs.getInt("job_experience");
+                        int level = rs.getInt("job_level");
+                        int experience = rs.getInt("job_experience");
 
+                        UUID uuid = player.getUniqueId();
                         jobTypes.put(uuid, jobType);
-                        jobLevels.put(uuid, jobLevel);
-                        jobExperience.put(uuid, jobExp);
-                    } else {
-                        // 신규 플레이어
-                        jobTypes.put(uuid, JobType.NONE);
-                        jobLevels.put(uuid, 1);
-                        jobExperience.put(uuid, 0);
+                        jobLevels.put(uuid, level);
+                        jobExperience.put(uuid, experience);
                     }
                 }
             }
@@ -999,20 +581,10 @@ public class JobManager implements Listener {
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING,
                     "플레이어 직업 데이터 로드 실패: " + player.getName(), e);
-
-            // 기본값 설정
-            jobTypes.put(uuid, JobType.NONE);
-            jobLevels.put(uuid, 1);
-            jobExperience.put(uuid, 0);
         }
     }
 
-    /**
-     * 플레이어 직업 데이터 저장
-     */
     public void savePlayerJobData(Player player) {
-        UUID uuid = player.getUniqueId();
-
         try (Connection connection = databaseManager.getConnection()) {
             String sql = """
                 INSERT INTO player_jobs (uuid, job_type, job_level, job_experience) 
@@ -1025,6 +597,7 @@ public class JobManager implements Listener {
                 """;
 
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                UUID uuid = player.getUniqueId();
                 stmt.setString(1, uuid.toString());
                 stmt.setString(2, getJobType(player).name());
                 stmt.setInt(3, getJobLevel(player));
@@ -1039,9 +612,8 @@ public class JobManager implements Listener {
         }
     }
 
-    /**
-     * 캐시 정리
-     */
+    // === 유틸리티 메서드들 ===
+
     public void cleanupCache() {
         try {
             // 오프라인 플레이어 데이터 정리
@@ -1061,10 +633,7 @@ public class JobManager implements Listener {
         }
     }
 
-    /**
-     * JobManager 종료
-     */
-    public void onDisable() {
+    public void shutdown() {
         try {
             // 경험치바 업데이트 태스크 중지
             if (expBarUpdateTask != null && !expBarUpdateTask.isCancelled()) {
@@ -1092,7 +661,8 @@ public class JobManager implements Listener {
         }
     }
 
-    // Getter 메서드들
+    // === Getter 메서드들 ===
+
     public ScoreboardIntegration getScoreboardIntegration() {
         return scoreboardIntegration;
     }

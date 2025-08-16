@@ -1,10 +1,11 @@
 plugins {
     id 'java'
     id("xyz.jpenilla.run-paper") version "2.3.1"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = 'com.ggm.survival'
-version = '2.0-NEW-PATCH(Update)'
+version = '2.0-HIKARICP-OPTIMIZED'
 
 repositories {
     mavenCentral()
@@ -20,6 +21,36 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
+
+    // HikariCP 데이터베이스 연결 풀 (최신 버전)
+    implementation("com.zaxxer:HikariCP:5.0.1")
+
+    // MySQL 드라이버 (최신 버전)
+    implementation("mysql:mysql-connector-java:8.0.33")
+
+    // SLF4J API (HikariCP가 사용)
+    implementation("org.slf4j:slf4j-api:1.7.36")
+    implementation("org.slf4j:slf4j-jdk14:1.7.36")
+
+    // 성능 모니터링 (옵션)
+    implementation("io.micrometer:micrometer-core:1.11.0")
+}
+
+shadowJar {
+    // 패키지 재배치로 충돌 방지
+    relocate 'com.zaxxer.hikari', 'com.ggm.ggmsurvival.libs.hikari'
+    relocate 'com.mysql.cj', 'com.ggm.ggmsurvival.libs.mysql'
+    relocate 'org.slf4j', 'com.ggm.ggmsurvival.libs.slf4j'
+    relocate 'io.micrometer', 'com.ggm.ggmsurvival.libs.micrometer'
+
+    // 플러그인 JAR에 라이브러리 포함
+    archiveClassifier.set('')
+
+    // 불필요한 파일 제외
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/DEPENDENCIES'
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
 }
 
 tasks {
@@ -28,6 +59,10 @@ tasks {
         // This is the only required configuration besides applying the plugin.
         // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion("1.20")
+    }
+
+    build {
+        dependsOn shadowJar
     }
 }
 

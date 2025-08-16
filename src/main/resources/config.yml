@@ -1,280 +1,216 @@
-# GGMSurvival 완전 안정화 설정 파일
-# 강화시스템: 검, 도끼, 활, 흉갑만 강화 가능
-# 직업레벨: 몬스터 처치로 성장하는 직업 시스템
+# ============================================================================
+# GGMSurvival 플러그인 설정 파일
+# HikariCP + EnderResetManager 완전 통합 버전
+# ============================================================================
 
 # ============================================================================
-# 데이터베이스 설정
+# 데이터베이스 설정 (HikariCP 최적화)
 # ============================================================================
 database:
   host: "localhost"
   port: 3306
   database: "ggm_server"
   username: "root"
-  password: "1224"
+  password: "your_password_here"
 
-  # 연결 풀 설정 (HikariCP)
-  pool:
-    maximum_pool_size: 20
-    minimum_idle: 5
-    connection_timeout: 30000
-    idle_timeout: 600000
-    max_lifetime: 1800000
+  # HikariCP 고급 설정
+  hikaricp:
+    maximum_pool_size: 20              # 최대 연결 수
+    minimum_idle: 5                    # 최소 유휴 연결 수
+    connection_timeout: 30000          # 연결 타임아웃 (밀리초)
+    idle_timeout: 600000               # 유휴 타임아웃 (10분)
+    max_lifetime: 1800000              # 최대 생명주기 (30분)
+    leak_detection_threshold: 60000    # 누수 탐지 임계값 (1분)
+
+    # MySQL 최적화 설정
+    cache_prep_stmts: true
+    prep_stmt_cache_size: 250
+    prep_stmt_cache_sql_limit: 2048
+    use_server_prep_stmts: true
+    use_ssl: false
+    allow_public_key_retrieval: true
+    server_timezone: "Asia/Seoul"
+    character_encoding: "UTF-8"
 
 # ============================================================================
-# 새로운 직업레벨 시스템
+# 시스템 활성화 설정
 # ============================================================================
 job_system:
   enabled: true
-  force_job_selection: true          # 접속 시 직업 선택 강제
-  allow_job_change: false            # 직업 변경 허용 여부 (NONE에서만 선택 가능)
-  job_selection_delay: 60            # 접속 후 직업 선택 알림 지연 (초)
-  max_job_level: 10                  # 최대 직업 레벨
-  level5_special_effects: true       # 레벨 5 특수 효과 활성화
-  level10_max_effects: true          # 레벨 10 만렙 효과 활성화
 
-  # 직업레벨 경험치 설정
-  experience:
-    # 레벨업에 필요한 경험치
-    requirements:
-      1: 100      # 1레벨: 100exp
-      2: 250      # 2레벨: 250exp
-      3: 500      # 3레벨: 500exp
-      4: 800      # 4레벨: 800exp
-      5: 1200     # 5레벨: 1200exp (특수 효과)
-      6: 1700     # 6레벨: 1700exp
-      7: 2300     # 7레벨: 2300exp
-      8: 3000     # 8레벨: 3000exp
-      9: 3800     # 9레벨: 3800exp
-      10: 4700    # 10레벨: 4700exp (최대)
+upgrade_system:
+  enabled: true
 
-    # 몬스터별 경험치
-    monster_exp:
-      # 일반 몬스터
-      ZOMBIE: 10
-      SKELETON: 10
-      SPIDER: 8
-      CREEPER: 12
-      SLIME: 5
-      CAVE_SPIDER: 12
+axe_speed_system:
+  enabled: true
 
-      # 중간 몬스터
-      ENDERMAN: 25
-      WITCH: 20
-      PILLAGER: 15
-      VINDICATOR: 18
-      EVOKER: 30
-      RAVAGER: 35
+dragon_reward_system:
+  enabled: true
 
-      # 강한 몬스터
-      WITHER_SKELETON: 40
-      BLAZE: 30
-      GHAST: 35
-      MAGMA_CUBE: 25
+npc_trade_system:
+  enabled: true
 
-      # 보스 몬스터
-      ENDER_DRAGON: 1000
-      WITHER: 500
-      ELDER_GUARDIAN: 200
-
-  # 직업별 효과 설정
-  jobs:
-    tank:
-      damage_bonus_per_level: 0.02     # 레벨당 데미지 보너스 (2%)
-      health_bonus_level5: 4.0         # 레벨 5 시 추가 체력 (하트 2개)
-      health_bonus_level10: 8.0        # 레벨 10 시 추가 체력 (하트 4개)
-      shield_heal_amount: 1.0          # 방패 방어 시 회복량
-      shield_cooldown: 3000            # 방패 회복 쿨다운 (밀리초)
-      shield_defense_chance: 0.3       # 방패 방어 확률 (30%)
-
-    warrior:
-      sword_damage_bonus: 0.05         # 레벨당 검 공격력 증가 (5%)
-      level5_attack_speed: true        # 레벨 5 시 공격속도 증가
-      level10_critical_chance: 10      # 레벨 10 시 크리티컬 확률 (10%)
-      critical_multiplier: 2.5         # 크리티컬 배율 (2.5배)
-      speed_boost_duration: 100        # 공격속도 증가 지속시간 (틱)
-
-    archer:
-      bow_damage_bonus: 0.03           # 레벨당 활 공격력 증가 (3%)
-      level5_speed_bonus: 0.02         # 레벨 5 시 이동속도 보너스 (20%)
-      level10_triple_shot: true        # 레벨 10 시 트리플 샷
-      leather_boots_required: true     # 가죽장화 착용 필요
-      speed_boost_message: true        # 속도 보너스 메시지 표시
+# 새로 추가된 엔더 리셋 시스템
+ender_reset_system:
+  enabled: true                       # 엔더 리셋 시스템 활성화 여부
 
 # ============================================================================
-# 새로운 강화 시스템 (검, 도끼, 활, 흉갑만)
+# 엔더 자동 리셋 시스템 설정 (새로 추가)
+# ============================================================================
+ender_reset:
+  # 리셋 시간 설정 (24시간 형식)
+  hour: 12                            # 리셋 시간 (0-23)
+  minute: 0                           # 리셋 분 (0-59)
+
+  # 엔드시티 차단 설정
+  block_end_cities: true              # 엔드시티 접근 차단 여부
+  end_city_min_distance: 1000         # 엔드시티 차단 최소 거리 (블록)
+
+  # BungeeCord 설정 (멀티 서버 환경)
+  target_server: "survival"           # 플레이어 이동할 대상 서버명
+
+  # 예고 알림 설정
+  warning_times:                      # 예고 알림 시간 (분 단위)
+    - 10
+    - 5
+    - 3
+    - 1
+
+  # 안전 설정
+  force_reset_confirmation_time: 30   # 강제 리셋 확인 시간 (초)
+  backup_world_before_reset: false    # 리셋 전 월드 백업 (실험적)
+
+# ============================================================================
+# 직업 시스템 설정
+# ============================================================================
+job_system:
+  enabled: true
+
+  # 직업별 설정
+  jobs:
+    tank:
+      enabled: true
+      max_level: 10
+      health_bonus_per_level: 2.0     # 레벨당 추가 체력 (하트 단위)
+      shield_defense_chance: 30       # 방패 방어 확률 (%)
+      shield_defense_cooldown: 3      # 방패 방어 쿨다운 (초)
+
+    warrior:
+      enabled: true
+      max_level: 10
+      attack_speed_bonus: 20          # 공격속도 보너스 (%)
+      critical_chance: 15             # 치명타 확률 (%)
+
+    archer:
+      enabled: true
+      max_level: 10
+      speed_bonus: 20                 # 이동속도 보너스 (%)
+      arrow_damage_bonus: 25          # 화살 데미지 보너스 (%)
+      triple_shot_chance: 30          # 3발 발사 확률 (%)
+
+  # 경험치 설정
+  experience:
+    requirements:                     # 레벨별 필요 경험치
+      1: 100
+      2: 250
+      3: 500
+      4: 800
+      5: 1200
+      6: 1700
+      7: 2300
+      8: 3000
+      9: 3800
+      10: 4700
+
+    monster_exp:                      # 몬스터별 경험치
+      zombie: 10
+      skeleton: 10
+      spider: 8
+      creeper: 12
+      enderman: 25
+      wither_skeleton: 40
+      blaze: 30
+      ender_dragon: 1000
+      wither: 500
+
+# ============================================================================
+# 강화 시스템 설정
 # ============================================================================
 upgrade_system:
   enabled: true
-  max_upgrade_level: 10              # 최대 강화 레벨
+  max_level: 10
 
-  # 강화 성공률 (레벨별)
+  # 강화 확률 설정 (레벨별)
   success_rates:
-    1: 0.95    # 1강: 95%
-    2: 0.95    # 2강: 95%
-    3: 0.95    # 3강: 95%
-    4: 0.80    # 4강: 80%
-    5: 0.80    # 5강: 80%
-    6: 0.60    # 6강: 60%
-    7: 0.60    # 7강: 60%
-    8: 0.40    # 8강: 40%
-    9: 0.40    # 9강: 40%
-    10: 0.20   # 10강: 20%
+    1: 100.0
+    2: 90.0
+    3: 80.0
+    4: 70.0
+    5: 60.0
+    6: 50.0
+    7: 40.0
+    8: 30.0
+    9: 20.0
+    10: 10.0
 
-  # 파괴/하락률 (레벨별)
-  destroy_rates:
-    1: 0.0     # 1강: 파괴되지 않음
-    2: 0.0     # 2강: 파괴되지 않음
-    3: 0.0     # 3강: 파괴되지 않음
-    4: 0.0     # 4강: 파괴되지 않음
-    5: 0.10    # 5강: 10% 하락
-    6: 0.10    # 6강: 10% 하락
-    7: 0.10    # 7강: 10% 하락
-    8: 0.20    # 8강: 20% 하락
-    9: 0.20    # 9강: 20% 하락
-    10: 0.30   # 10강: 30% 하락
+  # 강화 실패 시 하락 확률
+  downgrade_rates:
+    1: 0.0
+    2: 0.0
+    3: 10.0
+    4: 15.0
+    5: 20.0
+    6: 25.0
+    7: 30.0
+    8: 35.0
+    9: 40.0
+    10: 45.0
 
-  # 파괴/하락이 시작되는 레벨
-  downgrade_start_level: 5
+  # 강화 재료 설정
+  materials:
+    upgrade_stone: "DIAMOND"          # 강화석 아이템
+    protection_stone: "EMERALD"       # 보호석 아이템 (실패 시 레벨 보호)
 
-  # 강화 방법 설정
-  upgrade_methods:
-    enchant_table: true              # 인첸트 테이블 강화 허용
-    command_gui: true                # /upgrade gui 명령어 허용
-    direct_command: true             # /upgrade direct 명령어 허용
-    force_enchant_options: true      # 인첸트된 아이템도 테이블에 옵션 표시
-
-  # 도끼 공격속도 시스템
-  axe_speed:
-    enabled: true
-    speed_per_level: 0.02            # 레벨당 공격속도 증가 (2%)
-    max_speed_bonus: 0.20            # 최대 공격속도 보너스 (20%)
-
-  # 강화 비용 (경험치 레벨)
-  experience_costs:
-    1: 5      # 1강: 5레벨
-    2: 5      # 2강: 5레벨
-    3: 5      # 3강: 5레벨
-    4: 10     # 4강: 10레벨
-    5: 10     # 5강: 10레벨
-    6: 15     # 6강: 15레벨
-    7: 15     # 7강: 15레벨
-    8: 20     # 8강: 20레벨
-    9: 20     # 9강: 20레벨
-    10: 30    # 10강: 30레벨
+  # 10강 특수 효과 설정
+  special_effects:
+    sword_bleed: true                 # 검 출혈 효과
+    axe_fire: true                    # 도끼 발화 효과
+    bow_flame: true                   # 활 화염 화살
+    chestplate_thorns: true           # 흉갑 가시 효과
 
 # ============================================================================
-# 드래곤 보상 시스템
+# 드래곤 보상 시스템 설정
 # ============================================================================
-dragon_reward:
+dragon_reward_system:
   enabled: true
-  base_reward: 100000                # 기본 보상 (100,000G)
-  min_reward: 10000                  # 최소 보상 (10,000G)
-  min_damage_threshold: 50.0         # 최소 기여도 (데미지)
-  damage_timeout: 300000             # 기여도 만료 시간 (5분, 밀리초)
 
-  # 보상 계산 설정
-  contribution_bonus: 1.0            # 기여도 보너스 배율
-  participation_bonus: 5000          # 참가 보너스 (기본 지급)
+  # 보상 설정
+  base_reward: 5000                   # 기본 보상 (G)
+  min_damage_contribution: 1000       # 최소 기여 데미지
+  damage_bonus_rate: 1.0              # 데미지당 보너스 비율
 
-# ============================================================================
-# NPC 교환 시스템
-# ============================================================================
-npc_system:
-  enabled: true
-  max_npcs: 50                       # 최대 NPC 수
-  npc_protection: true               # NPC 보호 (무적)
-  npc_ai_disabled: true              # NPC AI 비활성화
+  # 추가 보상
+  bonus_rewards:
+    first_kill_daily: 2000            # 일일 첫 처치 보너스
+    participation_bonus: 1000         # 참여 보너스
 
-  # 기본 교환 설정
-  default_trades:
-    enabled: true
-    item_trader_enabled: true
-    resource_trader_enabled: true
-    special_trader_enabled: true
-
-# ============================================================================
-# 경제 시스템
-# ============================================================================
-economy:
-  starting_money: 1000               # 시작 금액
-  max_balance: 1000000000000         # 최대 잔액 (1조)
-  min_balance: 0                     # 최소 잔액
-  cache_timeout: 300000              # 캐시 만료 시간 (5분)
-
-  # GGMCore 연동 설정
-  ggmcore_integration: true          # GGMCore 연동 시도
-  fallback_to_local: true            # 연동 실패 시 로컬 모드
-
-# ============================================================================
-# 서버별 기능 설정
-# ============================================================================
-server_features:
-  auto_detect_server: true           # 서버 타입 자동 감지 (포트 기반)
-  server_type: "survival"            # 수동 서버 타입 설정
-
-  # 기능별 활성화 설정 (기본값)
-  features:
-    job_system: true                 # 직업 시스템
-    job_selection: true              # 직업 선택 GUI
-    upgrade_system: false            # 강화 시스템 (야생에서만)
-    dragon_reward: false             # 드래곤 보상 (야생에서만)
-    npc_trading: false               # NPC 교환 (야생에서만)
-
-  # 서버별 자동 설정 (포트 기반)
-  server_configs:
-    25565: # 로비 서버
-      job_system: true
-      job_selection: true
-      upgrade_system: false
-      dragon_reward: false
-      npc_trading: false
-
-    25566: # 건축 서버
-      job_system: true
-      job_selection: true
-      upgrade_system: false
-      dragon_reward: false
-      npc_trading: false
-
-    25567: # 야생 서버
-      job_system: true
-      job_selection: true
-      upgrade_system: true           # 새로운 강화 시스템
-      dragon_reward: true
-      npc_trading: true
-
-    25568: # 마을 서버
-      job_system: true
-      job_selection: true
-      upgrade_system: false
-      dragon_reward: false
-      npc_trading: false
+  # 쿨다운 설정
+  individual_cooldown: 3600           # 개인 쿨다운 (초, 1시간)
 
 # ============================================================================
 # 메시지 설정
 # ============================================================================
 messages:
-  prefix: "§6[GGM] §f"
-
   # 직업 관련 메시지
-  job_selection_required: "§e직업을 선택하여 특수 능력을 활용하세요!"
-  job_selection_reminder: "§c아직 직업을 선택하지 않으셨습니다! /job select 명령어를 사용하세요."
-  job_selected: "§a{job} 직업을 선택하셨습니다! 몬스터를 처치하여 레벨을 올리세요."
-  job_already_selected: "§c이미 직업을 선택하셨습니다. 변경은 불가능합니다."
-  job_level_up: "§e⚡ 직업 레벨업! §f{old_level} → {new_level}"
-  job_exp_gain: "§a+ {exp} 직업 경험치 §7({monster})"
-  job_max_level: "§6★ 만렙 10 달성! 최강의 능력을 얻었습니다!"
-
-  # 만렙 특수 효과 메시지
-  tank_max_level_effect: "§9💪 탱커 만렙: 흉갑 착용시 체력 +4칸 (28HP)"
-  warrior_critical_hit: "§c⚡ 크리티컬 발동! 2.5배 데미지!"
-  archer_triple_shot: "§a💫 트리플 샷! 화살 3발 발사!"
+  job_changed: "§a직업이 {job}(으)로 변경되었습니다!"
+  job_max_level: "§6축하합니다! 최대 레벨에 도달했습니다!"
+  job_level_up: "§e레벨 업! {job} {level}레벨이 되었습니다!"
 
   # 강화 관련 메시지
   upgrade_success: "§a✨ {level}강 강화 성공! ✨"
   upgrade_failure: "§c💥 {level}강 강화 실패!"
   upgrade_downgrade: "§c강화 레벨이 {level}강으로 하락했습니다!"
-  upgrade_not_available: "§c이 아이템은 강화할 수 없습니다! §7(강화 가능: 검, 도끼, 활, 흉갑)"
+  upgrade_not_available: "§c이 아이템은 강화할 수 없습니다!"
   upgrade_max_level: "§c이미 최대 강화 레벨(10강)에 도달했습니다!"
 
   # 효과 관련 메시지
@@ -283,68 +219,151 @@ messages:
   archer_speed_boost: "§a🏃 가죽장화 패시브: 이동속도 +20%"
   archer_speed_removed: "§7가죽장화 패시브 효과 해제"
 
-  # 10강 특수 효과 메시지
-  sword_bleed_effect: "§c🩸 출혈 효과 발동!"
-  axe_fire_effect: "§6🔥 발화 효과 발동!"
-  bow_flame_effect: "§a🎯 화염 화살 발사!"
-  chestplate_thorn_effect: "§9🛡️ 가시 효과 발동!"
-
   # 드래곤 관련 메시지
   dragon_kill_announcement: "§6🐉 엔더 드래곤이 처치되었습니다!"
   dragon_reward_received: "§a드래곤 처치 보상을 받았습니다: {amount}G"
   dragon_contribution_low: "§c최소 기여도에 미달하여 보상을 받을 수 없습니다."
 
-  # NPC 관련 메시지
-  npc_created: "§aNPC '{name}'이(가) 생성되었습니다!"
-  npc_removed: "§aNPC '{name}'이(가) 제거되었습니다!"
-  npc_trade_success: "§a교환이 완료되었습니다!"
-  npc_trade_failed: "§c교환에 실패했습니다."
+  # 엔더 리셋 관련 메시지 (새로 추가)
+  ender_reset_warning: "§c§l[엔더 리셋] §e{minutes}분 후 엔드 차원이 초기화됩니다!"
+  ender_reset_started: "§c§l[엔더 리셋] §f엔드 차원 초기화가 시작됩니다!"
+  ender_reset_completed: "§a§l[엔더 리셋] §f엔드 차원 초기화가 완료되었습니다!"
+  ender_reset_player_moved: "§a[엔더 리셋] {server} 서버로 안전하게 이동되었습니다!"
+
+  endcity_blocked: "§c[엔드시티 차단] 엔드시티 지역에 접근할 수 없습니다!"
+  endcity_kick_message: "§7메인 엔드 지역으로 이동됩니다."
+  endcity_teleport_blocked: "§c[엔드시티 차단] 해당 지역으로는 텔레포트할 수 없습니다!"
+  endcity_portal_blocked: "§c[엔드시티 차단] 엔드 게이트웨이 사용이 차단되었습니다!"
 
 # ============================================================================
 # 성능 및 최적화 설정
 # ============================================================================
 performance:
   # 비동기 처리 설정
-  async_database_operations: true   # 데이터베이스 비동기 처리
-  cache_player_data: true           # 플레이어 데이터 캐싱
-  auto_save_interval: 300           # 자동 저장 간격 (초)
+  async_database_operations: true     # 데이터베이스 비동기 처리
+  cache_player_data: true             # 플레이어 데이터 캐싱
+  auto_save_interval: 300             # 자동 저장 간격 (초)
 
   # 메모리 관리
-  memory_cleanup_interval: 1800     # 메모리 정리 간격 (초)
-  cache_cleanup_on_logout: true     # 로그아웃 시 캐시 정리
+  memory_cleanup_interval: 1800       # 메모리 정리 간격 (초)
+  cache_cleanup_on_logout: true       # 로그아웃 시 캐시 정리
 
   # 이벤트 처리 최적화
-  event_priority_optimization: true # 이벤트 우선순위 최적화
-  thread_safe_operations: true      # 스레드 안전 연산
+  event_priority_optimization: true   # 이벤트 우선순위 최적화
+  thread_safe_operations: true        # 스레드 안전 연산
+
+  # HikariCP 성능 모니터링
+  enable_performance_monitoring: false # 성능 모니터링 활성화 (개발용)
 
 # ============================================================================
 # 디버그 설정
 # ============================================================================
 debug:
-  enabled: false                     # 디버그 모드
-  log_job_events: false              # 직업 이벤트 로그
-  log_upgrade_events: false          # 강화 이벤트 로그
-  log_exp_gain: false                # 경험치 획득 로그
-  log_dragon_damage: false           # 드래곤 피해 로그
-  log_database_queries: false        # 데이터베이스 쿼리 로그
-  log_cache_operations: false        # 캐시 작업 로그
-  log_performance_metrics: false     # 성능 지표 로그
+  enabled: false                      # 디버그 모드
+  log_job_events: false               # 직업 이벤트 로그
+  log_upgrade_events: false           # 강화 이벤트 로그
+  log_exp_gain: false                 # 경험치 획득 로그
+  log_dragon_damage: false            # 드래곤 피해 로그
+  log_database_queries: false         # 데이터베이스 쿼리 로그
+  log_cache_operations: false         # 캐시 작업 로그
+  log_performance_metrics: false      # 성능 지표 로그
+  log_ender_reset_events: false       # 엔더 리셋 이벤트 로그 (새로 추가)
+  log_endcity_violations: false       # 엔드시티 위반 로그 (새로 추가)
+  log_reset_status: false             # 리셋 상태 주기적 로그
 
 # ============================================================================
 # 백업 및 안전 설정
 # ============================================================================
 safety:
   # 데이터 백업
-  auto_backup_enabled: true          # 자동 백업 활성화
-  backup_interval_hours: 6           # 백업 간격 (시간)
-  max_backup_files: 10               # 최대 백업 파일 수
+  auto_backup_enabled: true           # 자동 백업 활성화
+  backup_interval_hours: 6            # 백업 간격 (시간)
+  max_backup_files: 10                # 최대 백업 파일 수
 
   # 안전 장치
-  safe_shutdown: true                # 안전한 종료
-  data_validation: true              # 데이터 유효성 검증
-  error_recovery: true               # 오류 복구 시도
+  safe_shutdown: true                 # 안전한 종료
+  data_validation: true               # 데이터 유효성 검증
+  error_recovery: true                # 오류 복구 시도
 
   # 연결 관리
-  database_reconnect: true           # 데이터베이스 자동 재연결
-  connection_timeout: 30             # 연결 타임아웃 (초)
-  max_retry_attempts: 3              # 최대 재시도 횟수
+  database_reconnect: true            # 데이터베이스 자동 재연결
+  connection_timeout: 30              # 연결 타임아웃 (초)
+  max_retry_attempts: 3               # 최대 재시도 횟수
+
+  # 엔더 리셋 안전 설정 (새로 추가)
+  ender_reset_safety:
+    confirm_before_manual_reset: true # 수동 리셋 전 확인
+    backup_before_reset: false        # 리셋 전 백업 (디스크 공간 주의)
+    max_evacuation_time: 60           # 최대 대피 시간 (초)
+    emergency_stop_enabled: true      # 비상 정지 기능
+
+# ============================================================================
+# 통합 설정 (새로 추가)
+# ============================================================================
+integration:
+  # GGMCore 연동
+  ggmcore:
+    enabled: true                     # GGMCore 연동 활성화
+    scoreboard_integration: true      # 스코어보드 연동
+    economy_sync: true                # 경제 시스템 동기화
+
+  # BungeeCord 연동
+  bungeecord:
+    enabled: true                     # BungeeCord 연동 활성화
+    server_name: "survival"           # 현재 서버명
+    target_servers:                   # 대상 서버 목록
+      lobby: "lobby"
+      survival: "survival"
+      building: "building"
+
+  # Vault 연동 (옵션)
+  vault:
+    enabled: false                    # Vault 연동 활성화
+    economy_hook: false               # 경제 시스템 훅
+
+# ============================================================================
+# 서버별 기능 설정 (포트 기반 자동 감지)
+# ============================================================================
+server_features:
+  port_detection: true                # 포트 기반 자동 감지
+
+  features:
+    25565:                            # 로비 서버
+      job_system: true
+      upgrade_system: false
+      dragon_reward_system: false
+      ender_reset_system: false
+
+    25566:                            # 건축 서버
+      job_system: true
+      upgrade_system: false
+      dragon_reward_system: false
+      ender_reset_system: false
+
+    25567:                            # 야생 서버 (모든 기능)
+      job_system: true
+      upgrade_system: true
+      dragon_reward_system: true
+      ender_reset_system: true
+
+    25568:                            # 마을 서버
+      job_system: true
+      upgrade_system: false
+      dragon_reward_system: false
+      ender_reset_system: false
+
+# ============================================================================
+# 플러그인 정보
+# ============================================================================
+plugin_info:
+  version: "2.0-HIKARICP-ENDER"
+  author: "GGM Development Team"
+  description: "완전 통합 야생 서버 플러그인 - HikariCP + EnderReset"
+  features:
+    - "직업 시스템 (탱커, 전사, 궁수)"
+    - "장비 강화 시스템 (1~10강)"
+    - "엔더 자동 리셋 시스템"
+    - "드래곤 보상 시스템"
+    - "HikariCP 데이터베이스 최적화"
+    - "BungeeCord 멀티 서버 지원"
+    - "실시간 성능 모니터링"
