@@ -1,4 +1,4 @@
-// 완전 안정화된 SurvivalCommand.java
+// 완전한 SurvivalCommand.java - 이모티콘 제거 버전
 package com.ggm.ggmsurvival.commands;
 
 import com.ggm.ggmsurvival.GGMSurvival;
@@ -6,19 +6,27 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 import java.util.logging.Level;
 
 /**
- * 완전 안정화된 야생 서버 메인 명령어 처리기
+ * 완전한 야생 서버 메인 명령어 처리기
  * - 서버 정보 및 상태 확인
  * - 관리자 명령어 지원
  * - 강력한 예외 처리
+ * - 시스템 통계 제공
  */
-public class SurvivalCommand implements CommandExecutor {
+public class SurvivalCommand implements CommandExecutor, TabCompleter {
 
     private final GGMSurvival plugin;
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     public SurvivalCommand(GGMSurvival plugin) {
         this.plugin = plugin;
@@ -61,6 +69,29 @@ public class SurvivalCommand implements CommandExecutor {
                     showHelpCommand(sender);
                     break;
 
+                case "status":
+                case "상태":
+                    showSystemStatus(sender);
+                    break;
+
+                case "performance":
+                case "성능":
+                    if (!sender.hasPermission("ggm.survival.admin")) {
+                        sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.");
+                        return true;
+                    }
+                    showPerformanceInfo(sender);
+                    break;
+
+                case "test":
+                case "테스트":
+                    if (!sender.hasPermission("ggm.survival.admin")) {
+                        sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.");
+                        return true;
+                    }
+                    runSystemTest(sender);
+                    break;
+
                 default:
                     sender.sendMessage("§c알 수 없는 명령어입니다. §7/survival help §c를 참고하세요.");
                     break;
@@ -82,50 +113,25 @@ public class SurvivalCommand implements CommandExecutor {
     private void showServerInfo(CommandSender sender) {
         try {
             sender.sendMessage("§6==========================================");
-            sender.sendMessage("§e§lGGM 야생 서버 정보");
+            sender.sendMessage("§e§l        GGM 야생 서버");
             sender.sendMessage("");
-            sender.sendMessage("§7플러그인 버전: §f" + plugin.getDescription().getVersion());
-            sender.sendMessage("§7서버 포트: §f" + plugin.getServer().getPort());
-            sender.sendMessage("§7온라인 플레이어: §f" + Bukkit.getOnlinePlayers().size() + "명");
+            sender.sendMessage("§a플러그인: §f" + plugin.getDescription().getName());
+            sender.sendMessage("§a버전: §f" + plugin.getDescription().getVersion());
+            sender.sendMessage("§a온라인: §f" + Bukkit.getOnlinePlayers().size() + "명");
 
-            // 초기화 상태 표시
-            if (plugin.isInitialized()) {
-                sender.sendMessage("§7플러그인 상태: §a정상 작동");
-            } else {
-                sender.sendMessage("§7플러그인 상태: §c초기화 중...");
+            if (plugin.getEconomyManager() != null) {
+                boolean ggmCoreConnected = plugin.getEconomyManager().isGGMCoreConnected();
+                sender.sendMessage("§a경제 시스템: " + (ggmCoreConnected ? "§bGGMCore 연동" : "§e독립 모드"));
             }
 
             sender.sendMessage("");
-            sender.sendMessage("§a활성화된 시스템:");
-
-            // 직업 시스템
-            if (plugin.isFeatureEnabled("job_system")) {
-                sender.sendMessage("§7• §a직업 시스템 §7- 몬스터 처치로 성장");
-            }
-
-            // 강화 시스템
-            if (plugin.isFeatureEnabled("upgrade_system")) {
-                sender.sendMessage("§7• §a강화 시스템 §7- 검/도끼/활/흉갑만");
-            }
-
-            // 드래곤 보상
-            if (plugin.isFeatureEnabled("dragon_reward")) {
-                sender.sendMessage("§7• §a드래곤 보상 §7- 드래곤 처치 보상");
-            }
-
-            // NPC 교환
-            if (plugin.isFeatureEnabled("npc_trading")) {
-                sender.sendMessage("§7• §aNPC 교환 §7- 아이템 교환");
-            }
-
-            sender.sendMessage("");
-            sender.sendMessage("§7상세 정보: §e/survival info");
+            sender.sendMessage("§7명령어: §f/survival help");
             sender.sendMessage("§6==========================================");
 
         } catch (Exception e) {
             plugin.getLogger().log(Level.WARNING,
                     "서버 정보 표시 중 오류: " + sender.getName(), e);
-            sender.sendMessage("§c정보 조회 중 오류가 발생했습니다.");
+            sender.sendMessage("§c서버 정보 조회 중 오류가 발생했습니다.");
         }
     }
 
@@ -143,7 +149,7 @@ public class SurvivalCommand implements CommandExecutor {
             sender.sendMessage("§7• 이름: §f" + plugin.getDescription().getName());
             sender.sendMessage("§7• 버전: §f" + plugin.getDescription().getVersion());
             sender.sendMessage("§7• 제작자: §f" + String.join(", ", plugin.getDescription().getAuthors()));
-            sender.sendMessage("§7• 웹사이트: §f" + plugin.getDescription().getWebsite());
+            sender.sendMessage("§7• 설명: §f" + plugin.getDescription().getDescription());
 
             // 서버 정보
             sender.sendMessage("");
@@ -151,6 +157,7 @@ public class SurvivalCommand implements CommandExecutor {
             sender.sendMessage("§7• 버킷 버전: §f" + Bukkit.getVersion());
             sender.sendMessage("§7• API 버전: §f" + Bukkit.getBukkitVersion());
             sender.sendMessage("§7• 온라인 플레이어: §f" + Bukkit.getOnlinePlayers().size() + "/" + Bukkit.getMaxPlayers());
+            sender.sendMessage("§7• 현재 시간: §f" + dateFormat.format(new Date()));
 
             // 시스템 상태
             sender.sendMessage("");
@@ -174,6 +181,7 @@ public class SurvivalCommand implements CommandExecutor {
             sender.sendMessage("§7• 도끼속도 매니저: " + (plugin.getAxeSpeedManager() != null ? "§a활성화" : "§c비활성화"));
             sender.sendMessage("§7• 드래곤보상 매니저: " + (plugin.getDragonRewardManager() != null ? "§a활성화" : "§c비활성화"));
             sender.sendMessage("§7• NPC교환 매니저: " + (plugin.getNPCTradeManager() != null ? "§a활성화" : "§c비활성화"));
+            sender.sendMessage("§7• 엔더리셋 매니저: " + (plugin.getEnderResetManager() != null ? "§a활성화" : "§c비활성화"));
 
             sender.sendMessage("§6==========================================");
 
@@ -212,12 +220,19 @@ public class SurvivalCommand implements CommandExecutor {
             sender.sendMessage("§7- 강화 시스템: " + (upgradeSystemEnabled ? "§a활성화" : "§c비활성화"));
 
             // 드래곤 보상
-            boolean dragonRewardEnabled = plugin.getConfig().getBoolean("dragon_reward.enabled", true);
+            boolean dragonRewardEnabled = plugin.getConfig().getBoolean("dragon_reward_system.enabled", true);
             sender.sendMessage("§7- 드래곤 보상: " + (dragonRewardEnabled ? "§a활성화" : "§c비활성화"));
 
             // NPC 교환
-            boolean npcTradeEnabled = plugin.getConfig().getBoolean("npc_system.enabled", true);
+            boolean npcTradeEnabled = plugin.getConfig().getBoolean("npc_trade_system.enabled", true);
             sender.sendMessage("§7- NPC 교환: " + (npcTradeEnabled ? "§a활성화" : "§c비활성화"));
+
+            // 엔더 리셋
+            boolean enderResetEnabled = plugin.getConfig().getBoolean("ender_reset_system.enabled", false);
+            sender.sendMessage("§7- 엔더 리셋: " + (enderResetEnabled ? "§a활성화" : "§c비활성화"));
+
+            sender.sendMessage("");
+            sender.sendMessage("§e일부 변경사항은 서버 재시작 후 적용됩니다.");
 
             plugin.getLogger().info(sender.getName() + "이(가) 플러그인 설정을 리로드했습니다.");
 
@@ -240,54 +255,48 @@ public class SurvivalCommand implements CommandExecutor {
             sender.sendMessage("§a기본 정보:");
             sender.sendMessage("§7• 플러그인 버전: §f" + plugin.getDescription().getVersion());
             sender.sendMessage("§7• 온라인 플레이어: §f" + Bukkit.getOnlinePlayers().size() + "명");
+            sender.sendMessage("§7• 최대 플레이어: §f" + Bukkit.getMaxPlayers() + "명");
+
+            // 월드 정보
+            sender.sendMessage("");
+            sender.sendMessage("§a월드 정보:");
+            int worldCount = Bukkit.getWorlds().size();
+            sender.sendMessage("§7• 로드된 월드: §f" + worldCount + "개");
+
+            for (org.bukkit.World world : Bukkit.getWorlds()) {
+                String envName = getEnvironmentName(world.getEnvironment());
+                int playerCount = world.getPlayers().size();
+                sender.sendMessage("§7  - " + world.getName() + " (" + envName + "): §f" + playerCount + "명");
+            }
 
             // 경제 시스템 상태
             if (plugin.getEconomyManager() != null) {
-                boolean ggmCoreConnected = plugin.getEconomyManager().isGGMCoreConnected();
-                sender.sendMessage("§7• GGMCore 연동: " + (ggmCoreConnected ? "§a연결됨" : "§c연결 안됨"));
-
-                if (sender.hasPermission("ggm.survival.admin")) {
-                    // 관리자에게만 추가 정보 표시
-                    sender.sendMessage("§7• 경제 캐시: §f" + plugin.getEconomyManager().getCacheSize() + "개");
-                    sender.sendMessage("§7• 총 거래: §f" + plugin.getEconomyManager().getTotalTransactions() + "회");
-                }
-            }
-
-            // 시스템별 상태
-            sender.sendMessage("");
-            sender.sendMessage("§a시스템 상태:");
-            sender.sendMessage("§7• 직업 시스템: " + getSystemStatus("job_system.enabled"));
-            sender.sendMessage("§7• 강화 시스템: " + getSystemStatus("upgrade_system.enabled"));
-            sender.sendMessage("§7• 드래곤 보상: " + getSystemStatus("dragon_reward.enabled"));
-            sender.sendMessage("§7• NPC 교환: " + getSystemStatus("npc_system.enabled"));
-
-            // 서버 성능 정보 (관리자만)
-            if (sender.hasPermission("ggm.survival.admin")) {
                 sender.sendMessage("");
-                sender.sendMessage("§a성능 정보:");
-
-                Runtime runtime = Runtime.getRuntime();
-                long maxMemory = runtime.maxMemory() / 1024 / 1024;  // MB
-                long totalMemory = runtime.totalMemory() / 1024 / 1024;
-                long freeMemory = runtime.freeMemory() / 1024 / 1024;
-                long usedMemory = totalMemory - freeMemory;
-
-                sender.sendMessage("§7• 메모리 사용량: §f" + usedMemory + "MB / " + maxMemory + "MB");
-                sender.sendMessage("§7• 플러그인 상태: " + (plugin.isInitialized() ? "§a정상" : "§e초기화 중"));
-
-                // 데이터베이스 상태
-                if (plugin.getDatabaseManager() != null) {
-                    var dbStats = plugin.getDatabaseManager().getStats();
-                    sender.sendMessage("§7• DB 연결: §f" + dbStats.activeConnections + "/" + dbStats.totalConnections);
-                }
+                sender.sendMessage("§a경제 시스템:");
+                boolean ggmCoreConnected = plugin.getEconomyManager().isGGMCoreConnected();
+                sender.sendMessage("§7• GGMCore 연동: " + (ggmCoreConnected ? "§a활성화" : "§c독립 모드"));
             }
+
+            // 활성화된 시스템 개수
+            sender.sendMessage("");
+            sender.sendMessage("§a활성화된 시스템:");
+            int activeSystemCount = 0;
+
+            if (plugin.getJobManager() != null) activeSystemCount++;
+            if (plugin.getEnchantUpgradeManager() != null) activeSystemCount++;
+            if (plugin.getAxeSpeedManager() != null) activeSystemCount++;
+            if (plugin.getDragonRewardManager() != null) activeSystemCount++;
+            if (plugin.getNPCTradeManager() != null) activeSystemCount++;
+            if (plugin.getEnderResetManager() != null) activeSystemCount++;
+
+            sender.sendMessage("§7• 활성 시스템: §f" + activeSystemCount + "/6개");
 
             sender.sendMessage("§6==========================================");
 
         } catch (Exception e) {
             plugin.getLogger().log(Level.WARNING,
                     "서버 통계 표시 중 오류: " + sender.getName(), e);
-            sender.sendMessage("§c통계 조회 중 오류가 발생했습니다.");
+            sender.sendMessage("§c서버 통계 조회 중 오류가 발생했습니다.");
         }
     }
 
@@ -297,35 +306,25 @@ public class SurvivalCommand implements CommandExecutor {
     private void showPatchInfo(CommandSender sender) {
         try {
             sender.sendMessage("§6==========================================");
-            sender.sendMessage("§e§lGGM 야생 서버 패치 노트");
+            sender.sendMessage("§e§l최신 패치 정보");
             sender.sendMessage("");
-            sender.sendMessage("§a새로운 기능:");
-            sender.sendMessage("§7• §6새로운 강화 시스템");
-            sender.sendMessage("§7  - 검, 도끼, 활, 흉갑만 강화 가능");
-            sender.sendMessage("§7  - 10강 달성 시 특수 효과 부여");
-            sender.sendMessage("§7  - 도끼 강화 시 공격속도 증가");
+            sender.sendMessage("§a버전: §f" + plugin.getDescription().getVersion());
+            sender.sendMessage("§a패치명: §fHikariCP + EnderReset 통합");
             sender.sendMessage("");
-            sender.sendMessage("§7• §e새로운 직업레벨 시스템");
-            sender.sendMessage("§7  - 몬스터 처치로 경험치 획득");
-            sender.sendMessage("§7  - 최대 10레벨까지 성장 가능");
-            sender.sendMessage("§7  - 레벨 5/10에서 특수 능력 해제");
+            sender.sendMessage("§a주요 변경사항:");
+            sender.sendMessage("§7• HikariCP 데이터베이스 연결 풀 도입");
+            sender.sendMessage("§7• 엔더 자동 리셋 시스템 추가");
+            sender.sendMessage("§7• 엔드시티 접근 차단 기능");
+            sender.sendMessage("§7• BungeeCord 멀티 서버 지원");
+            sender.sendMessage("§7• 성능 최적화 및 메모리 관리 개선");
+            sender.sendMessage("§7• 스레드 안전성 강화");
+            sender.sendMessage("§7• 포괄적인 오류 처리 시스템");
             sender.sendMessage("");
-            sender.sendMessage("§7• §a경험치바 UI");
-            sender.sendMessage("§7  - 실시간 레벨 & 경험치 표시");
-            sender.sendMessage("§7  - 직업별 색상 구분");
-            sender.sendMessage("");
-            sender.sendMessage("§a직업별 특수 능력:");
-            sender.sendMessage("§7• §9탱커 §7- 체력 증가, 방패 회복");
-            sender.sendMessage("§7• §c검사 §7- 크리티컬 공격, 공격속도 증가");
-            sender.sendMessage("§7• §a궁수 §7- 이동속도 증가, 트리플 샷");
-            sender.sendMessage("");
-            sender.sendMessage("§a10강 특수 효과:");
-            sender.sendMessage("§7• §c검 §7- 출혈 효과 (지속 피해)");
-            sender.sendMessage("§7• §6도끼 §7- 발화 효과 (화염 피해)");
-            sender.sendMessage("§7• §a활 §7- 화염 화살 (화염 속성)");
-            sender.sendMessage("§7• §9흉갑 §7- 가시 효과 (반사 피해)");
-            sender.sendMessage("");
-            sender.sendMessage("§6업데이트 일자: §f2025년 8월");
+            sender.sendMessage("§a수정사항:");
+            sender.sendMessage("§7• 메모리 누수 문제 해결");
+            sender.sendMessage("§7• 데이터베이스 연결 안정성 향상");
+            sender.sendMessage("§7• 플레이어 데이터 저장 로직 개선");
+            sender.sendMessage("§7• 예외 처리 강화");
             sender.sendMessage("§6==========================================");
 
         } catch (Exception e) {
@@ -340,38 +339,34 @@ public class SurvivalCommand implements CommandExecutor {
      */
     private void showHelpCommand(CommandSender sender) {
         try {
-            boolean isAdmin = sender.hasPermission("ggm.survival.admin");
-
             sender.sendMessage("§6==========================================");
-            sender.sendMessage("§e§l야생 서버 도움말");
+            sender.sendMessage("§e§l야생 서버 명령어 도움말");
             sender.sendMessage("");
-            sender.sendMessage("§a일반 명령어:");
-            sender.sendMessage("§7• §e/survival §7- 서버 기본 정보");
-            sender.sendMessage("§7• §e/survival info §7- 상세 정보");
-            sender.sendMessage("§7• §e/survival stats §7- 서버 통계");
-            sender.sendMessage("§7• §e/survival patch §7- 패치 노트");
+            sender.sendMessage("§a기본 명령어:");
+            sender.sendMessage("§e/survival §7- 서버 기본 정보");
+            sender.sendMessage("§e/survival info §7- 상세 정보");
+            sender.sendMessage("§e/survival stats §7- 서버 통계");
+            sender.sendMessage("§e/survival patch §7- 패치 정보");
+            sender.sendMessage("§e/survival status §7- 시스템 상태");
+            sender.sendMessage("");
+            sender.sendMessage("§a시스템 명령어:");
+            sender.sendMessage("§e/job §7- 직업 시스템");
+            sender.sendMessage("§e/upgrade §7- 강화 시스템");
+            sender.sendMessage("§e/trade §7- NPC 교환 시스템");
+            sender.sendMessage("§e/dragon §7- 드래곤 보상 시스템");
 
-            if (isAdmin) {
+            if (plugin.getEnderResetManager() != null) {
+                sender.sendMessage("§e/enderreset §7- 엔더 리셋 시스템");
+            }
+
+            if (sender.hasPermission("ggm.survival.admin")) {
                 sender.sendMessage("");
                 sender.sendMessage("§c관리자 명령어:");
-                sender.sendMessage("§7• §e/survival reload §7- 설정 리로드");
+                sender.sendMessage("§e/survival reload §7- 설정 리로드");
+                sender.sendMessage("§e/survival performance §7- 성능 정보");
+                sender.sendMessage("§e/survival test §7- 시스템 테스트");
             }
 
-            sender.sendMessage("");
-            sender.sendMessage("§a주요 시스템:");
-            sender.sendMessage("§7• §e/job §7- 직업 시스템");
-            sender.sendMessage("§7• §e/upgrade §7- 강화 시스템");
-
-            if (plugin.isFeatureEnabled("dragon_reward")) {
-                sender.sendMessage("§7• §e/dragon §7- 드래곤 보상");
-            }
-
-            if (plugin.isFeatureEnabled("npc_trading")) {
-                sender.sendMessage("§7• §e/trade §7- NPC 교환");
-            }
-
-            sender.sendMessage("");
-            sender.sendMessage("§7각 시스템의 상세 명령어는 §e<명령어> help §7를 참고하세요!");
             sender.sendMessage("§6==========================================");
 
         } catch (Exception e) {
@@ -382,14 +377,213 @@ public class SurvivalCommand implements CommandExecutor {
     }
 
     /**
-     * 시스템 상태 확인
+     * 시스템 상태 표시
      */
-    private String getSystemStatus(String configPath) {
+    private void showSystemStatus(CommandSender sender) {
         try {
-            boolean enabled = plugin.getConfig().getBoolean(configPath, true);
-            return enabled ? "§a활성화" : "§c비활성화";
+            sender.sendMessage("§6==========================================");
+            sender.sendMessage("§e§l시스템 상태 확인");
+            sender.sendMessage("");
+
+            // 플러그인 초기화 상태
+            sender.sendMessage("§a플러그인 상태:");
+            sender.sendMessage("§7• 초기화 완료: " + (plugin.isInitialized() ? "§a예" : "§c아니오"));
+            sender.sendMessage("§7• 종료 진행 중: " + (plugin.isShuttingDown() ? "§c예" : "§a아니오"));
+
+            // 핵심 매니저 상태
+            sender.sendMessage("");
+            sender.sendMessage("§a핵심 매니저:");
+            sender.sendMessage("§7• 데이터베이스: " + getManagerStatus(plugin.getDatabaseManager()));
+            sender.sendMessage("§7• 경제 시스템: " + getManagerStatus(plugin.getEconomyManager()));
+
+            // 게임 시스템 매니저
+            sender.sendMessage("");
+            sender.sendMessage("§a게임 시스템:");
+            sender.sendMessage("§7• 직업 시스템: " + getManagerStatus(plugin.getJobManager()));
+            sender.sendMessage("§7• 강화 시스템: " + getManagerStatus(plugin.getEnchantUpgradeManager()));
+            sender.sendMessage("§7• 도끼 속도: " + getManagerStatus(plugin.getAxeSpeedManager()));
+            sender.sendMessage("§7• 드래곤 보상: " + getManagerStatus(plugin.getDragonRewardManager()));
+            sender.sendMessage("§7• NPC 교환: " + getManagerStatus(plugin.getNPCTradeManager()));
+            sender.sendMessage("§7• 엔더 리셋: " + getManagerStatus(plugin.getEnderResetManager()));
+
+            sender.sendMessage("§6==========================================");
+
         } catch (Exception e) {
-            return "§7알 수 없음";
+            plugin.getLogger().log(Level.WARNING,
+                    "시스템 상태 표시 중 오류: " + sender.getName(), e);
+            sender.sendMessage("§c시스템 상태 조회 중 오류가 발생했습니다.");
         }
+    }
+
+    /**
+     * 성능 정보 표시 (관리자 전용)
+     */
+    private void showPerformanceInfo(CommandSender sender) {
+        try {
+            sender.sendMessage("§6==========================================");
+            sender.sendMessage("§e§l서버 성능 정보");
+            sender.sendMessage("");
+
+            // 메모리 정보
+            Runtime runtime = Runtime.getRuntime();
+            long maxMemory = runtime.maxMemory() / 1024 / 1024;
+            long totalMemory = runtime.totalMemory() / 1024 / 1024;
+            long freeMemory = runtime.freeMemory() / 1024 / 1024;
+            long usedMemory = totalMemory - freeMemory;
+
+            sender.sendMessage("§a메모리 사용량:");
+            sender.sendMessage("§7• 사용 중: §f" + usedMemory + "MB");
+            sender.sendMessage("§7• 할당됨: §f" + totalMemory + "MB");
+            sender.sendMessage("§7• 최대: §f" + maxMemory + "MB");
+            sender.sendMessage("§7• 사용률: §f" + (usedMemory * 100 / maxMemory) + "%");
+
+            // TPS 정보 (근사치)
+            sender.sendMessage("");
+            sender.sendMessage("§a서버 성능:");
+            sender.sendMessage("§7• 프로세서: §f" + runtime.availableProcessors() + "코어");
+            sender.sendMessage("§7• 활성 스레드: §f" + Thread.activeCount() + "개");
+
+            // 데이터베이스 연결 풀 정보 (HikariCP)
+            if (plugin.getDatabaseManager() != null) {
+                sender.sendMessage("");
+                sender.sendMessage("§a데이터베이스:");
+                sender.sendMessage("§7• 연결 상태: " +
+                        (plugin.getDatabaseManager().testConnection() ? "§a정상" : "§c오류"));
+                sender.sendMessage("§7• 연결 풀: §fHikariCP");
+            }
+
+            sender.sendMessage("§6==========================================");
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "성능 정보 표시 중 오류: " + sender.getName(), e);
+            sender.sendMessage("§c성능 정보 조회 중 오류가 발생했습니다.");
+        }
+    }
+
+    /**
+     * 시스템 테스트 실행 (관리자 전용)
+     */
+    private void runSystemTest(CommandSender sender) {
+        try {
+            sender.sendMessage("§e시스템 테스트를 시작합니다...");
+            sender.sendMessage("");
+
+            int passedTests = 0;
+            int totalTests = 0;
+
+            // 1. 플러그인 초기화 테스트
+            totalTests++;
+            boolean initTest = plugin.isInitialized();
+            sender.sendMessage("§7[테스트 " + totalTests + "] 플러그인 초기화: " +
+                    (initTest ? "§a통과" : "§c실패"));
+            if (initTest) passedTests++;
+
+            // 2. 데이터베이스 연결 테스트
+            totalTests++;
+            boolean dbTest = plugin.getDatabaseManager() != null &&
+                    plugin.getDatabaseManager().testConnection();
+            sender.sendMessage("§7[테스트 " + totalTests + "] 데이터베이스 연결: " +
+                    (dbTest ? "§a통과" : "§c실패"));
+            if (dbTest) passedTests++;
+
+            // 3. 경제 시스템 테스트
+            totalTests++;
+            boolean ecoTest = plugin.getEconomyManager() != null;
+            sender.sendMessage("§7[테스트 " + totalTests + "] 경제 시스템: " +
+                    (ecoTest ? "§a통과" : "§c실패"));
+            if (ecoTest) passedTests++;
+
+            // 4. 설정 파일 테스트
+            totalTests++;
+            boolean configTest = plugin.getConfig() != null;
+            sender.sendMessage("§7[테스트 " + totalTests + "] 설정 파일: " +
+                    (configTest ? "§a통과" : "§c실패"));
+            if (configTest) passedTests++;
+
+            // 5. 매니저 로드 테스트
+            totalTests++;
+            int loadedManagers = 0;
+            if (plugin.getJobManager() != null) loadedManagers++;
+            if (plugin.getEnchantUpgradeManager() != null) loadedManagers++;
+            if (plugin.getAxeSpeedManager() != null) loadedManagers++;
+            if (plugin.getDragonRewardManager() != null) loadedManagers++;
+            if (plugin.getNPCTradeManager() != null) loadedManagers++;
+            if (plugin.getEnderResetManager() != null) loadedManagers++;
+
+            boolean managerTest = loadedManagers > 0;
+            sender.sendMessage("§7[테스트 " + totalTests + "] 매니저 로드 (" + loadedManagers + "/6): " +
+                    (managerTest ? "§a통과" : "§c실패"));
+            if (managerTest) passedTests++;
+
+            // 테스트 결과
+            sender.sendMessage("");
+            double successRate = (double) passedTests / totalTests * 100;
+            sender.sendMessage("§a테스트 결과: §f" + passedTests + "/" + totalTests +
+                    " 통과 (" + String.format("%.1f", successRate) + "%)");
+
+            if (successRate >= 80) {
+                sender.sendMessage("§a시스템이 정상적으로 작동하고 있습니다!");
+            } else {
+                sender.sendMessage("§c일부 시스템에 문제가 있습니다. 로그를 확인하세요.");
+            }
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING,
+                    "시스템 테스트 중 오류: " + sender.getName(), e);
+            sender.sendMessage("§c시스템 테스트 중 오류가 발생했습니다.");
+        }
+    }
+
+    /**
+     * 매니저 상태 확인 헬퍼
+     */
+    private String getManagerStatus(Object manager) {
+        if (manager == null) {
+            return "§c비활성화";
+        }
+        return "§a활성화";
+    }
+
+    /**
+     * 환경 이름 변환 헬퍼
+     */
+    private String getEnvironmentName(org.bukkit.World.Environment environment) {
+        switch (environment) {
+            case NORMAL:
+                return "오버월드";
+            case NETHER:
+                return "네더";
+            case THE_END:
+                return "엔드";
+            default:
+                return "알 수 없음";
+        }
+    }
+
+    /**
+     * 탭 완성 제공
+     */
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        List<String> completions = new ArrayList<>();
+
+        if (args.length == 1) {
+            List<String> subCommands = Arrays.asList("info", "stats", "patch", "help", "status");
+
+            if (sender.hasPermission("ggm.survival.admin")) {
+                subCommands = Arrays.asList("info", "reload", "stats", "patch", "help",
+                        "status", "performance", "test");
+            }
+
+            String input = args[0].toLowerCase();
+            for (String subCommand : subCommands) {
+                if (subCommand.startsWith(input)) {
+                    completions.add(subCommand);
+                }
+            }
+        }
+
+        return completions;
     }
 }

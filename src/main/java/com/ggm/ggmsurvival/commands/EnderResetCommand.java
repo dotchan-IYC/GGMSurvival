@@ -1,4 +1,4 @@
-// 완전한 EnderResetCommand.java
+// 완전한 EnderResetCommand.java - 이모티콘 제거 버전
 package com.ggm.ggmsurvival.commands;
 
 import com.ggm.ggmsurvival.GGMSurvival;
@@ -147,27 +147,27 @@ public class EnderResetCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e§l     엔더 리셋 시스템 정보");
             sender.sendMessage("");
 
-            sender.sendMessage("§7📅 리셋 시간: §f매일 " +
+            sender.sendMessage("§7[시간] 리셋 시간: §f매일 " +
                     String.format("%02d:%02d", enderResetManager.getResetHour(), enderResetManager.getResetMinute()));
 
-            sender.sendMessage("§7⏰ 다음 리셋: §a" + enderResetManager.getTimeUntilReset() + " 후");
+            sender.sendMessage("§7[대기] 다음 리셋: §a" + enderResetManager.getTimeUntilReset() + " 후");
 
-            sender.sendMessage("§7🏰 엔드시티 차단: " +
+            sender.sendMessage("§7[차단] 엔드시티 차단: " +
                     (enderResetManager.isEndCityBlockingEnabled() ? "§a활성화" : "§c비활성화"));
 
             if (enderResetManager.isEndCityBlockingEnabled()) {
-                sender.sendMessage("§7📏 차단 최소 거리: §f" + enderResetManager.getEndCityMinDistance() + " 블록");
+                sender.sendMessage("§7[거리] 차단 최소 거리: §f" + enderResetManager.getEndCityMinDistance() + " 블록");
             }
 
-            sender.sendMessage("§7🌐 이동 대상 서버: §b" + enderResetManager.getTargetServerName());
+            sender.sendMessage("§7[서버] 이동 대상 서버: §b" + enderResetManager.getTargetServerName());
 
             if (enderResetManager.isResetPending()) {
                 sender.sendMessage("");
-                sender.sendMessage("§c⚠️ 강제 리셋이 대기 중입니다!");
+                sender.sendMessage("§c[경고] 강제 리셋이 대기 중입니다!");
             }
 
             sender.sendMessage("");
-            sender.sendMessage("§7💡 기능 설명:");
+            sender.sendMessage("§7[기능] 시스템 설명:");
             sender.sendMessage("§8  • 매일 정해진 시간에 엔드 차원 자동 초기화");
             sender.sendMessage("§8  • 리셋 10분, 5분, 3분, 1분 전 예고 알림");
             sender.sendMessage("§8  • 엔드에 있는 플레이어 자동 서버 이동");
@@ -197,7 +197,7 @@ public class EnderResetCommand implements CommandExecutor, TabCompleter {
 
         try {
             admin.sendMessage("§c§l[엔더 리셋] §f강제 리셋을 시작합니다...");
-            admin.sendMessage("§e⚠️ 이 작업은 되돌릴 수 없습니다!");
+            admin.sendMessage("§e[경고] 이 작업은 되돌릴 수 없습니다!");
             admin.sendMessage("§730초 후 자동 실행됩니다.");
             admin.sendMessage("§7취소하려면 명령어를 다시 입력하세요: §f/enderreset force");
             admin.sendMessage("");
@@ -221,7 +221,7 @@ public class EnderResetCommand implements CommandExecutor, TabCompleter {
 
             enderResetManager.setResetTime(hour, minute);
 
-            sender.sendMessage("§a✅ 리셋 시간이 성공적으로 변경되었습니다!");
+            sender.sendMessage("§a[성공] 리셋 시간이 성공적으로 변경되었습니다!");
             sender.sendMessage("§7새 리셋 시간: §f매일 " + String.format("%02d:%02d", hour, minute));
             sender.sendMessage("§7다음 리셋: §a" + enderResetManager.getTimeUntilReset() + " 후");
 
@@ -243,39 +243,41 @@ public class EnderResetCommand implements CommandExecutor, TabCompleter {
     /**
      * 엔드시티 차단 설정 토글
      */
-    private void toggleEndCityBlock(CommandSender sender, String value) {
-        boolean enabled;
-
-        if (value.equalsIgnoreCase("true") ||
-                value.equalsIgnoreCase("on") ||
-                value.equalsIgnoreCase("enable") ||
-                value.equalsIgnoreCase("활성화")) {
-            enabled = true;
-        } else if (value.equalsIgnoreCase("false") ||
-                value.equalsIgnoreCase("off") ||
-                value.equalsIgnoreCase("disable") ||
-                value.equalsIgnoreCase("비활성화")) {
-            enabled = false;
-        } else {
-            sender.sendMessage("§c잘못된 값입니다.");
-            sender.sendMessage("§7사용법: /enderreset block <true|false>");
-            sender.sendMessage("§7예시: /enderreset block true");
-            return;
-        }
-
+    private void toggleEndCityBlock(CommandSender sender, String enableStr) {
         try {
-            enderResetManager.setEndCityBlocking(enabled);
+            boolean enable;
 
-            sender.sendMessage("§a✅ 엔드시티 차단 설정이 변경되었습니다!");
-            sender.sendMessage("§7엔드시티 차단: " + (enabled ? "§a활성화" : "§c비활성화"));
-
-            if (enabled) {
-                sender.sendMessage("§7플레이어가 엔드시티 지역(" + enderResetManager.getEndCityMinDistance() +
-                        "블록 이상)에 접근하면");
-                sender.sendMessage("§7자동으로 메인 엔드로 이동됩니다.");
-            } else {
-                sender.sendMessage("§7플레이어가 엔드시티에 자유롭게 접근할 수 있습니다.");
+            switch (enableStr.toLowerCase()) {
+                case "true":
+                case "on":
+                case "활성화":
+                case "1":
+                    enable = true;
+                    break;
+                case "false":
+                case "off":
+                case "비활성화":
+                case "0":
+                    enable = false;
+                    break;
+                default:
+                    sender.sendMessage("§c잘못된 값입니다. true 또는 false를 입력하세요.");
+                    return;
             }
+
+            // 설정 저장
+            plugin.getConfig().set("ender_reset.block_end_cities", enable);
+            plugin.saveConfig();
+
+            sender.sendMessage("§a[성공] 엔드시티 차단 설정이 변경되었습니다!");
+            sender.sendMessage("§7엔드시티 차단: " + (enable ? "§a활성화" : "§c비활성화"));
+
+            if (enable) {
+                int distance = plugin.getConfig().getInt("ender_reset.end_city_min_distance", 1000);
+                sender.sendMessage("§7차단 거리: §f" + distance + " 블록");
+            }
+
+            sender.sendMessage("§e설정을 적용하려면 /enderreset reload를 실행하세요.");
 
         } catch (Exception e) {
             sender.sendMessage("§c엔드시티 차단 설정 중 오류가 발생했습니다: " + e.getMessage());
@@ -284,135 +286,125 @@ public class EnderResetCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * 설정 리로드
+     * 엔더 리셋 설정 리로드
      */
     private void reloadEnderReset(CommandSender sender) {
         try {
-            sender.sendMessage("§e설정을 다시 로드하는 중...");
+            sender.sendMessage("§e엔더 리셋 시스템을 다시 로드하고 있습니다...");
 
             // 플러그인 설정 리로드
             plugin.reloadConfig();
 
-            // EnderResetManager 재시작 (새로운 설정 적용)
-            enderResetManager.shutdown();
+            // EnderResetManager 재초기화는 복잡하므로 재시작 권장
+            sender.sendMessage("§a[성공] 설정 파일이 리로드되었습니다!");
+            sender.sendMessage("§e[주의] 모든 변경사항을 적용하려면 서버 재시작을 권장합니다.");
+            sender.sendMessage("");
 
-            // 잠시 후 새 인스턴스 생성
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                try {
-                    // GGMSurvival에서 EnderResetManager 재초기화
-                    plugin.reinitializeEnderResetManager();
-
-                    sender.sendMessage("§a✅ 엔더 리셋 설정이 성공적으로 리로드되었습니다!");
-                    sender.sendMessage("§7새로운 설정이 적용되었습니다.");
-
-                } catch (Exception e) {
-                    sender.sendMessage("§c설정 리로드 중 오류가 발생했습니다: " + e.getMessage());
-                    plugin.getLogger().severe("엔더 리셋 설정 리로드 실패: " + e.getMessage());
-                }
-            }, 20L); // 1초 후
+            // 현재 설정 표시
+            sender.sendMessage("§7현재 설정:");
+            sender.sendMessage("§7• 시스템 활성화: " +
+                    (plugin.getConfig().getBoolean("ender_reset_system.enabled", false) ? "§a예" : "§c아니오"));
+            sender.sendMessage("§7• 리셋 시간: §f" +
+                    plugin.getConfig().getInt("ender_reset.hour", 12) + ":" +
+                    String.format("%02d", plugin.getConfig().getInt("ender_reset.minute", 0)));
+            sender.sendMessage("§7• 엔드시티 차단: " +
+                    (plugin.getConfig().getBoolean("ender_reset.block_end_cities", true) ? "§a활성화" : "§c비활성화"));
 
         } catch (Exception e) {
             sender.sendMessage("§c설정 리로드 중 오류가 발생했습니다: " + e.getMessage());
-            plugin.getLogger().severe("엔더 리셋 설정 리로드 실패: " + e.getMessage());
+            plugin.getLogger().warning("엔더 리셋 설정 리로드 오류: " + e.getMessage());
         }
     }
 
     /**
-     * 시스템 테스트
+     * 엔더 리셋 시스템 테스트
      */
     private void testEnderReset(CommandSender sender) {
         try {
-            sender.sendMessage("§e엔더 리셋 시스템 테스트 중...");
+            sender.sendMessage("§e엔더 리셋 시스템 테스트를 시작합니다...");
+            sender.sendMessage("");
 
-            // 기본 상태 확인
-            boolean systemOk = true;
-            StringBuilder report = new StringBuilder();
+            // 1. 설정 확인
+            boolean systemEnabled = plugin.getConfig().getBoolean("ender_reset_system.enabled", false);
+            sender.sendMessage("§7[테스트 1] 시스템 활성화: " +
+                    (systemEnabled ? "§a통과" : "§c실패 - 시스템이 비활성화됨"));
 
-            // EnderResetManager 상태 확인
-            if (enderResetManager == null) {
-                report.append("§c❌ EnderResetManager가 null입니다.\n");
-                systemOk = false;
-            } else {
-                report.append("§a✅ EnderResetManager 정상 작동\n");
-            }
+            // 2. EnderResetManager 확인
+            boolean managerExists = enderResetManager != null;
+            sender.sendMessage("§7[테스트 2] 매니저 로드: " +
+                    (managerExists ? "§a통과" : "§c실패 - 매니저 로드 안됨"));
 
-            // 엔드 월드 확인
+            // 3. 엔드 월드 확인
             boolean endWorldExists = false;
             for (org.bukkit.World world : plugin.getServer().getWorlds()) {
                 if (world.getEnvironment() == org.bukkit.World.Environment.THE_END) {
                     endWorldExists = true;
-                    report.append("§a✅ 엔드 월드 발견: ").append(world.getName()).append("\n");
                     break;
                 }
             }
+            sender.sendMessage("§7[테스트 3] 엔드 월드: " +
+                    (endWorldExists ? "§a통과" : "§c실패 - 엔드 월드 없음"));
 
-            if (!endWorldExists) {
-                report.append("§c❌ 엔드 월드를 찾을 수 없습니다.\n");
-                systemOk = false;
-            }
+            // 4. BungeeCord 채널 확인
+            boolean bungeeChannelRegistered = plugin.getServer().getMessenger()
+                    .isOutgoingChannelRegistered(plugin, "BungeeCord");
+            sender.sendMessage("§7[테스트 4] BungeeCord 채널: " +
+                    (bungeeChannelRegistered ? "§a통과" : "§c실패 - 채널 등록 안됨"));
 
-            // BungeeCord 채널 확인
-            if (plugin.getServer().getMessenger().isOutgoingChannelRegistered(plugin, "BungeeCord")) {
-                report.append("§a✅ BungeeCord 채널 등록됨\n");
+            // 5. 권한 확인
+            boolean hasPermission = sender.hasPermission("ggm.enderreset.admin");
+            sender.sendMessage("§7[테스트 5] 관리자 권한: " +
+                    (hasPermission ? "§a통과" : "§c실패 - 권한 없음"));
+
+            sender.sendMessage("");
+
+            // 전체 결과
+            if (systemEnabled && managerExists && endWorldExists && bungeeChannelRegistered) {
+                sender.sendMessage("§a[결과] 엔더 리셋 시스템이 정상적으로 작동 중입니다!");
+
+                if (managerExists) {
+                    sender.sendMessage("§7다음 리셋: §a" + enderResetManager.getTimeUntilReset() + " 후");
+                }
             } else {
-                report.append("§c❌ BungeeCord 채널이 등록되지 않음\n");
-                systemOk = false;
+                sender.sendMessage("§c[결과] 엔더 리셋 시스템에 문제가 있습니다.");
+                sender.sendMessage("§7위의 실패한 항목들을 확인해주세요.");
             }
-
-            // 설정 확인
-            int hour = enderResetManager.getResetHour();
-            int minute = enderResetManager.getResetMinute();
-            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                report.append("§a✅ 리셋 시간 설정 정상: ")
-                        .append(String.format("%02d:%02d", hour, minute)).append("\n");
-            } else {
-                report.append("§c❌ 잘못된 리셋 시간 설정\n");
-                systemOk = false;
-            }
-
-            // 결과 출력
-            sender.sendMessage("§6=== 엔더 리셋 시스템 테스트 결과 ===");
-            sender.sendMessage(report.toString());
-
-            if (systemOk) {
-                sender.sendMessage("§a🎉 모든 테스트 통과! 시스템이 정상 작동합니다.");
-            } else {
-                sender.sendMessage("§c⚠️ 일부 테스트 실패. 관리자에게 문의하세요.");
-            }
-
-            sender.sendMessage("§6================================");
 
         } catch (Exception e) {
-            sender.sendMessage("§c테스트 실행 중 오류가 발생했습니다: " + e.getMessage());
-            plugin.getLogger().warning("엔더 리셋 테스트 오류: " + e.getMessage());
+            sender.sendMessage("§c시스템 테스트 중 오류가 발생했습니다: " + e.getMessage());
+            plugin.getLogger().warning("엔더 리셋 시스템 테스트 오류: " + e.getMessage());
         }
     }
 
+    /**
+     * 탭 완성 제공
+     */
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
-            // 첫 번째 인수 자동완성
+            // 첫 번째 인수 - 하위 명령어
             List<String> subCommands = Arrays.asList("info", "status");
 
             if (sender.hasPermission("ggm.enderreset.admin")) {
                 subCommands = Arrays.asList("info", "status", "force", "schedule", "block", "reload", "test");
             }
 
+            String input = args[0].toLowerCase();
             for (String subCommand : subCommands) {
-                if (subCommand.toLowerCase().startsWith(args[0].toLowerCase())) {
+                if (subCommand.startsWith(input)) {
                     completions.add(subCommand);
                 }
             }
 
         } else if (args.length == 2) {
-            // 두 번째 인수 자동완성
+            // 두 번째 인수
             String subCommand = args[0].toLowerCase();
 
-            if ("block".equals(subCommand) || "endcity".equals(subCommand)) {
+            if ("block".equals(subCommand) && sender.hasPermission("ggm.enderreset.admin")) {
                 completions.addAll(Arrays.asList("true", "false"));
-            } else if ("schedule".equals(subCommand) || "time".equals(subCommand)) {
+            } else if ("schedule".equals(subCommand) && sender.hasPermission("ggm.enderreset.admin")) {
                 // 시간 제안 (0-23)
                 for (int i = 0; i <= 23; i++) {
                     completions.add(String.valueOf(i));
@@ -420,10 +412,10 @@ public class EnderResetCommand implements CommandExecutor, TabCompleter {
             }
 
         } else if (args.length == 3) {
-            // 세 번째 인수 자동완성
+            // 세 번째 인수
             String subCommand = args[0].toLowerCase();
 
-            if ("schedule".equals(subCommand) || "time".equals(subCommand)) {
+            if ("schedule".equals(subCommand) && sender.hasPermission("ggm.enderreset.admin")) {
                 // 분 제안 (0, 15, 30, 45)
                 completions.addAll(Arrays.asList("0", "15", "30", "45"));
             }

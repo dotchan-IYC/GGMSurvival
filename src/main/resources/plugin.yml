@@ -1,3 +1,8 @@
+# ============================================================================
+# GGMSurvival 완전 통합 야생 서버 플러그인 설정
+# HikariCP + EnderResetManager 버전
+# ============================================================================
+
 name: GGMSurvival
 version: '${version}'
 main: com.ggm.ggmsurvival.GGMSurvival
@@ -20,7 +25,7 @@ loadbefore:
   - WorldGuard
 
 # ============================================================================
-# 명령어 정의 (엔더 리셋 명령어 추가)
+# 명령어 정의
 # ============================================================================
 commands:
   # 직업 시스템 명령어
@@ -54,11 +59,11 @@ commands:
   # 메인 플러그인 명령어
   survival:
     description: GGMSurvival 메인 명령어
-    usage: /survival <reload|stats|info|help>
+    usage: /survival <reload|stats|info|help|status|performance|test>
     permission: ggm.survival
     aliases: [야생, ggmsurvival]
 
-  # 엔더 리셋 시스템 명령어 (새로 추가)
+  # 엔더 리셋 시스템 명령어
   enderreset:
     description: 엔더 자동 리셋 시스템
     usage: /enderreset <info|status|force|schedule|block|reload|test>
@@ -66,18 +71,32 @@ commands:
     aliases: [엔더리셋, endrreset, er]
 
 # ============================================================================
-# 권한 시스템 (엔더 리셋 권한 추가)
+# 권한 시스템
 # ============================================================================
 permissions:
   # ==========================================================================
   # 기본 사용자 권한
   # ==========================================================================
+  ggm.survival:
+    description: 기본 야생 서버 기능 사용
+    default: true
+    children:
+      ggm.survival.info: true
+
+  ggm.survival.info:
+    description: 서버 정보 확인
+    default: true
+
+  # ==========================================================================
+  # 직업 시스템 권한
+  # ==========================================================================
   ggm.job:
-    description: 직업 시스템 사용
+    description: 직업 시스템 기본 사용 권한
     default: true
     children:
       ggm.job.info: true
       ggm.job.change: true
+      ggm.job.list: true
 
   ggm.job.info:
     description: 직업 정보 확인
@@ -87,25 +106,72 @@ permissions:
     description: 직업 변경
     default: true
 
+  ggm.job.reset:
+    description: 직업 초기화
+    default: false
+
+  ggm.job.level:
+    description: 직업 레벨 관리
+    default: false
+
+  ggm.job.list:
+    description: 직업 목록 확인
+    default: true
+
+  ggm.job.admin:
+    description: 직업 시스템 관리자 권한
+    default: false
+    children:
+      ggm.job.*: true
+
+  # ==========================================================================
+  # 강화 시스템 권한
+  # ==========================================================================
   ggm.upgrade:
-    description: 강화 시스템 사용
+    description: 장비 강화 시스템 사용
     default: true
 
+  ggm.upgrade.admin:
+    description: 강화 시스템 관리자 권한
+    default: false
+
+  # ==========================================================================
+  # 거래 시스템 권한
+  # ==========================================================================
   ggm.trade:
-    description: NPC 거래 사용
+    description: NPC 거래 시스템 사용
     default: true
 
+  ggm.trade.create:
+    description: NPC 거래 생성
+    default: false
+
+  ggm.trade.remove:
+    description: NPC 거래 삭제
+    default: false
+
+  ggm.trade.admin:
+    description: NPC 거래 시스템 관리자 권한
+    default: false
+    children:
+      ggm.trade.*: true
+
+  # ==========================================================================
+  # 드래곤 보상 권한
+  # ==========================================================================
   ggm.dragon:
     description: 드래곤 보상 시스템 사용
     default: true
 
-  ggm.survival:
-    description: 기본 야생 서버 기능 사용
-    default: true
+  ggm.dragon.admin:
+    description: 드래곤 보상 시스템 관리자 권한
+    default: false
 
-  # 엔더 리셋 기본 권한 (새로 추가)
+  # ==========================================================================
+  # 엔더 리셋 시스템 권한
+  # ==========================================================================
   ggm.enderreset:
-    description: 엔더 리셋 정보 확인
+    description: 엔더 리셋 시스템 기본 사용
     default: true
     children:
       ggm.enderreset.info: true
@@ -119,169 +185,72 @@ permissions:
     description: 엔더 리셋 상태 확인
     default: true
 
+  ggm.enderreset.admin:
+    description: 엔더 리셋 시스템 관리자 권한
+    default: false
+    children:
+      ggm.enderreset.*: true
+
+  ggm.enderreset.force:
+    description: 강제 엔더 리셋 실행
+    default: false
+
+  ggm.enderreset.schedule:
+    description: 엔더 리셋 시간 설정
+    default: false
+
+  ggm.enderreset.block:
+    description: 엔드시티 차단 설정
+    default: false
+
+  ggm.enderreset.bypass:
+    description: 엔드시티 차단 무시
+    default: false
+
+  ggm.enderreset.reload:
+    description: 엔더 리셋 설정 리로드
+    default: false
+
   # ==========================================================================
   # 관리자 권한
   # ==========================================================================
-  ggm.job.admin:
-    description: 직업 시스템 관리
-    default: op
-    children:
-      ggm.job: true
-      ggm.job.reset: true
-      ggm.job.setlevel: true
-      ggm.job.reload: true
-
-  ggm.job.reset:
-    description: 직업 초기화 권한
-    default: op
-
-  ggm.job.setlevel:
-    description: 직업 레벨 설정 권한
-    default: op
-
-  ggm.job.reload:
-    description: 직업 시스템 설정 리로드 권한
-    default: op
-
-  ggm.upgrade.admin:
-    description: 강화 시스템 관리
-    default: op
-    children:
-      ggm.upgrade: true
-      ggm.upgrade.force: true
-      ggm.upgrade.reload: true
-
-  ggm.upgrade.force:
-    description: 강제 강화 권한
-    default: op
-
-  ggm.upgrade.reload:
-    description: 강화 시스템 설정 리로드 권한
-    default: op
-
-  ggm.upgrade.stats:
-    description: 강화 시스템 통계 확인 권한
-    default: op
-
-  ggm.npc.admin:
-    description: NPC 시스템 관리
-    default: op
-    children:
-      ggm.trade: true
-      ggm.npc.create: true
-      ggm.npc.remove: true
-      ggm.npc.list: true
-
-  ggm.npc.create:
-    description: NPC 생성 권한
-    default: op
-
-  ggm.npc.remove:
-    description: NPC 제거 권한
-    default: op
-
-  ggm.npc.list:
-    description: NPC 목록 확인 권한
-    default: op
-
-  ggm.dragon.admin:
-    description: 드래곤 시스템 관리
-    default: op
-    children:
-      ggm.dragon: true
-      ggm.dragon.reload: true
-      ggm.dragon.stats: true
-
-  ggm.dragon.reload:
-    description: 드래곤 시스템 리로드 권한
-    default: op
-
-  ggm.dragon.stats:
-    description: 드래곤 시스템 통계 권한
-    default: op
-
   ggm.survival.admin:
-    description: 야생 서버 관리
-    default: op
+    description: 야생 서버 관리자 권한
+    default: false
     children:
-      ggm.survival: true
-      ggm.survival.reload: true
-      ggm.survival.stats: true
-
-  ggm.survival.reload:
-    description: 서버 설정 리로드 권한
-    default: op
-
-  ggm.survival.stats:
-    description: 서버 통계 확인 권한
-    default: op
-
-  # ==========================================================================
-  # 엔더 리셋 관리자 권한 (새로 추가)
-  # ==========================================================================
-  ggm.enderreset.admin:
-    description: 엔더 리셋 시스템 관리
-    default: op
-    children:
-      ggm.enderreset: true
-      ggm.enderreset.force: true
-      ggm.enderreset.schedule: true
-      ggm.enderreset.block: true
-      ggm.enderreset.reload: true
-      ggm.enderreset.test: true
-
-  ggm.enderreset.force:
-    description: 강제 엔더 리셋 권한
-    default: op
-
-  ggm.enderreset.schedule:
-    description: 엔더 리셋 시간 설정 권한
-    default: op
-
-  ggm.enderreset.block:
-    description: 엔드시티 차단 설정 권한
-    default: op
-
-  ggm.enderreset.reload:
-    description: 엔더 리셋 설정 리로드 권한
-    default: op
-
-  ggm.enderreset.test:
-    description: 엔더 리셋 시스템 테스트 권한
-    default: op
-
-  ggm.enderreset.bypass:
-    description: 엔드시티 차단 우회 권한 (관리자용)
-    default: op
-
-  # ==========================================================================
-  # 전체 권한 (슈퍼 관리자)
-  # ==========================================================================
-  ggm.*:
-    description: 모든 GGM 야생 서버 권한
-    default: op
-    children:
-      # 기본 권한
-      ggm.job: true
-      ggm.upgrade: true
-      ggm.trade: true
-      ggm.dragon: true
-      ggm.survival: true
-      ggm.enderreset: true
-      
-      # 관리자 권한
+      ggm.survival.*: true
       ggm.job.admin: true
       ggm.upgrade.admin: true
-      ggm.npc.admin: true
+      ggm.trade.admin: true
       ggm.dragon.admin: true
-      ggm.survival.admin: true
       ggm.enderreset.admin: true
 
-  ggm.admin:
-    description: GGM 관리자 권한 (전체 권한과 동일)
-    default: op
+  ggm.survival.reload:
+    description: 플러그인 리로드
+    default: false
+
+  ggm.survival.performance:
+    description: 성능 정보 확인
+    default: false
+
+  ggm.survival.test:
+    description: 시스템 테스트 실행
+    default: false
+
+  # ==========================================================================
+  # 최고 관리자 권한
+  # ==========================================================================
+  ggm.*:
+    description: 모든 GGM 플러그인 권한
+    default: false
     children:
-      ggm.*: true
+      ggm.survival.*: true
+      ggm.job.*: true
+      ggm.upgrade.*: true
+      ggm.trade.*: true
+      ggm.dragon.*: true
+      ggm.enderreset.*: true
+      ggm.debug: true
 
   # ==========================================================================
   # 개발자 권한 (디버깅 및 테스트용)
@@ -350,3 +319,35 @@ changelog:
     - "성능 최적화 및 메모리 관리 개선"
     - "스레드 안전성 강화"
     - "포괄적인 오류 처리 및 복구 시스템"
+    - "이모티콘 제거 및 텍스트 기반 UI"
+    - "명령어 시스템 완전 재구성"
+    - "권한 시스템 세분화"
+
+technical_details:
+  database:
+    type: "MySQL with HikariCP"
+    features: ["Connection Pooling", "Leak Detection", "Performance Optimization"]
+  
+  systems:
+    job_system: "3개 직업 (탱커, 전사, 궁수) + 레벨링"
+    upgrade_system: "1-10강 장비 강화 + 도끼 속도 보너스"
+    ender_reset: "일정 시간 자동 리셋 + 엔드시티 차단"
+    dragon_reward: "직업별 차등 보상 + 특별 아이템"
+    npc_trade: "커스텀 NPC 거래 + 쿨다운"
+  
+  performance:
+    async_processing: true
+    memory_management: true
+    connection_pooling: true
+    caching: true
+
+compatibility:
+  minecraft_versions: ["1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4"]
+  server_software: ["Paper", "Purpur", "Airplane"]
+  java_versions: [17, 18, 19, 20, 21]
+
+security:
+  input_validation: true
+  sql_injection_protection: true
+  permission_checking: true
+  rate_limiting: true

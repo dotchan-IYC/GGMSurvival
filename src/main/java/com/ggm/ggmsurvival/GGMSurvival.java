@@ -1,4 +1,4 @@
-// 최종 GGMSurvival.java - EnderResetManager 완전 통합 버전
+// 완전한 GGMSurvival.java - 이모티콘 제거 버전
 package com.ggm.ggmsurvival;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -21,7 +21,7 @@ public class GGMSurvival extends JavaPlugin {
     private volatile AxeSpeedManager axeSpeedManager;
     private volatile DragonRewardManager dragonRewardManager;
     private volatile NPCTradeManager npcTradeManager;
-    private volatile EnderResetManager enderResetManager; // 새로 추가
+    private volatile EnderResetManager enderResetManager;
 
     // 스케줄러 태스크들 - 메모리 누수 방지
     private BukkitTask autoSaveTask;
@@ -142,7 +142,7 @@ public class GGMSurvival extends JavaPlugin {
                 "database.username",
                 "job_system.enabled",
                 "upgrade_system.enabled",
-                "ender_reset_system.enabled" // 새로 추가
+                "ender_reset_system.enabled"
         };
 
         boolean allValid = true;
@@ -174,7 +174,7 @@ public class GGMSurvival extends JavaPlugin {
     }
 
     /**
-     * 매니저 초기화 - 안전하고 순차적 (엔더 리셋 매니저 포함)
+     * 매니저 초기화 - 안전하고 순차적
      */
     private void initializeManagers() {
         try {
@@ -187,46 +187,46 @@ public class GGMSurvival extends JavaPlugin {
             if (!databaseManager.testConnection()) {
                 throw new RuntimeException("데이터베이스 연결 실패");
             }
-            getLogger().info("✅ 데이터베이스 매니저 초기화 완료 (HikariCP)");
+            getLogger().info("데이터베이스 매니저 초기화 완료 (HikariCP)");
 
             // 2. 경제 매니저 (GGMCore 연동)
             getLogger().info("경제 매니저 초기화 중...");
             economyManager = new EconomyManager(this);
-            getLogger().info("✅ 경제 매니저 초기화 완료");
+            getLogger().info("경제 매니저 초기화 완료");
 
             // 3. 직업 매니저 (활성화 체크)
             if (getConfig().getBoolean("job_system.enabled", true)) {
                 getLogger().info("직업 시스템 매니저 초기화 중...");
                 jobManager = new JobManager(this);
-                getLogger().info("✅ 직업 시스템 매니저 초기화 완료");
+                getLogger().info("직업 시스템 매니저 초기화 완료");
             }
 
             // 4. 강화 매니저 (활성화 체크)
             if (getConfig().getBoolean("upgrade_system.enabled", true)) {
                 getLogger().info("강화 시스템 매니저 초기화 중...");
                 enchantUpgradeManager = new EnchantUpgradeManager(this);
-                getLogger().info("✅ 강화 시스템 매니저 초기화 완료");
+                getLogger().info("강화 시스템 매니저 초기화 완료");
             }
 
             // 5. 도끼 속도 매니저 (활성화 체크)
             if (getConfig().getBoolean("axe_speed_system.enabled", true)) {
                 getLogger().info("도끼 공격속도 매니저 초기화 중...");
                 axeSpeedManager = new AxeSpeedManager(this);
-                getLogger().info("✅ 도끼 공격속도 매니저 초기화 완료");
+                getLogger().info("도끼 공격속도 매니저 초기화 완료");
             }
 
             // 6. 드래곤 보상 매니저 (활성화 체크)
             if (getConfig().getBoolean("dragon_reward_system.enabled", true)) {
                 getLogger().info("드래곤 보상 매니저 초기화 중...");
                 dragonRewardManager = new DragonRewardManager(this);
-                getLogger().info("✅ 드래곤 보상 매니저 초기화 완료");
+                getLogger().info("드래곤 보상 매니저 초기화 완료");
             }
 
             // 7. NPC 교환 매니저 (활성화 체크)
             if (getConfig().getBoolean("npc_trade_system.enabled", true)) {
                 getLogger().info("NPC 교환 매니저 초기화 중...");
                 npcTradeManager = new NPCTradeManager(this);
-                getLogger().info("✅ NPC 교환 매니저 초기화 완료");
+                getLogger().info("NPC 교환 매니저 초기화 완료");
             }
 
             // 8. 엔더 리셋 매니저 (새로 추가 - 활성화 체크)
@@ -234,16 +234,16 @@ public class GGMSurvival extends JavaPlugin {
                 getLogger().info("엔더 리셋 매니저 초기화 중...");
                 try {
                     enderResetManager = new EnderResetManager(this);
-                    getLogger().info("✅ 엔더 리셋 매니저 초기화 완료");
+                    getLogger().info("엔더 리셋 매니저 초기화 완료");
                 } catch (Exception e) {
                     getLogger().log(Level.WARNING, "엔더 리셋 매니저 초기화 실패 - 계속 진행", e);
                     enderResetManager = null;
                 }
             } else {
-                getLogger().info("⚠️ 엔더 리셋 시스템 비활성화됨 (설정에서 활성화 가능)");
+                getLogger().info("엔더 리셋 시스템 비활성화됨 (설정에서 활성화 가능)");
             }
 
-            getLogger().info("🎉 모든 매니저 초기화 완료!");
+            getLogger().info("모든 매니저 초기화 완료!");
 
         } catch (Exception e) {
             getLogger().log(Level.SEVERE, "매니저 초기화 실패", e);
@@ -252,26 +252,21 @@ public class GGMSurvival extends JavaPlugin {
     }
 
     /**
-     * 서버 기능 감지 (향상됨)
+     * 서버 기능 감지
      */
     private void loadServerFeatures() {
         try {
             // GGMCore 연동 체크
             boolean ggmCoreAvailable = getServer().getPluginManager().getPlugin("GGMCore") != null;
-            getLogger().info("GGMCore 연동: " + (ggmCoreAvailable ? "✅ 가능" : "❌ 독립 모드"));
+            getLogger().info("GGMCore 연동: " + (ggmCoreAvailable ? "사용 가능" : "독립 모드"));
 
-            // Vault 연동 체크 (옵션)
+            // Vault 체크
             boolean vaultAvailable = getServer().getPluginManager().getPlugin("Vault") != null;
-            getLogger().info("Vault 연동: " + (vaultAvailable ? "✅ 가능" : "⚠️ 비활성화"));
+            getLogger().info("Vault 지원: " + (vaultAvailable ? "사용 가능" : "비활성화"));
 
-            // BungeeCord 환경 체크
-            try {
-                String serverName = getServer().getMotd();
-                boolean bungeeCordMode = getConfig().getBoolean("ender_reset.target_server", "").length() > 0;
-                getLogger().info("BungeeCord 모드: " + (bungeeCordMode ? "✅ 활성화" : "⚠️ 단일 서버"));
-            } catch (Exception e) {
-                getLogger().info("BungeeCord 모드: ⚠️ 확인 불가");
-            }
+            // PlaceholderAPI 체크
+            boolean papiAvailable = getServer().getPluginManager().getPlugin("PlaceholderAPI") != null;
+            getLogger().info("PlaceholderAPI 지원: " + (papiAvailable ? "사용 가능" : "비활성화"));
 
         } catch (Exception e) {
             getLogger().log(Level.WARNING, "서버 기능 감지 중 오류", e);
@@ -279,169 +274,115 @@ public class GGMSurvival extends JavaPlugin {
     }
 
     /**
-     * 명령어 등록 - 안전한 등록 (엔더 리셋 명령어 포함)
+     * 명령어 등록
      */
     private void registerCommands() {
         try {
-            // 기본 명령어들
-            registerCommand("job", new JobCommand(this));
-            registerCommand("강화", new UpgradeCommand(this));
-            registerCommand("upgrade", new UpgradeCommand(this));
-            registerCommand("trade", new TradeCommand(this));
-            registerCommand("dragon", new DragonCommand(this));
-            registerCommand("survival", new SurvivalCommand(this));
-            registerCommand("ggmsurvival", new SurvivalCommand(this));
+            // 메인 명령어
+            getCommand("survival").setExecutor(new SurvivalCommand(this));
 
-            // 엔더 리셋 명령어 (활성화 시)
-            if (enderResetManager != null) {
-                registerCommand("enderreset", new EnderResetCommand(this));
-                getLogger().info("✅ 엔더 리셋 명령어 등록 완료");
-            } else {
-                getLogger().info("⚠️ 엔더 리셋 명령어 비활성화됨");
+            // 직업 시스템 명령어
+            if (jobManager != null) {
+                getCommand("job").setExecutor(new JobCommand(this));
             }
 
-            getLogger().info("✅ 모든 명령어 등록 완료");
+            // 강화 시스템 명령어
+            if (enchantUpgradeManager != null) {
+                getCommand("upgrade").setExecutor(new UpgradeCommand(this));
+            }
+
+            // 거래 시스템 명령어
+            if (npcTradeManager != null) {
+                getCommand("trade").setExecutor(new TradeCommand(this));
+            }
+
+            // 드래곤 시스템 명령어
+            if (dragonRewardManager != null) {
+                getCommand("dragon").setExecutor(new DragonCommand(this));
+            }
+
+            // 엔더 리셋 명령어
+            if (enderResetManager != null) {
+                getCommand("enderreset").setExecutor(new EnderResetCommand(this));
+            }
+
+            getLogger().info("모든 명령어 등록 완료");
 
         } catch (Exception e) {
+            getLogger().log(Level.SEVERE, "명령어 등록 실패", e);
             throw new RuntimeException("명령어 등록 실패", e);
         }
     }
 
     /**
-     * 개별 명령어 등록 헬퍼
-     */
-    private void registerCommand(String name, org.bukkit.command.CommandExecutor executor) {
-        try {
-            if (getCommand(name) != null) {
-                getCommand(name).setExecutor(executor);
-
-                // TabCompleter 설정 (지원하는 경우)
-                if (executor instanceof org.bukkit.command.TabCompleter) {
-                    getCommand(name).setTabCompleter((org.bukkit.command.TabCompleter) executor);
-                }
-
-                getLogger().fine("명령어 등록: /" + name);
-            } else {
-                getLogger().warning("명령어 등록 실패: /" + name + " (plugin.yml 확인 필요)");
-            }
-        } catch (Exception e) {
-            getLogger().log(Level.WARNING, "명령어 등록 실패: /" + name, e);
-        }
-    }
-
-    /**
-     * 리스너 등록 - 안전한 등록 (엔더 리스너 포함)
+     * 이벤트 리스너 등록
      */
     private void registerListeners() {
         try {
-            // 기본 플레이어 리스너
-            getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+            // 플레이어 관련 리스너
+            getServer().getPluginManager().registerEvents(new PlayerJoinListener(this), this);
+            getServer().getPluginManager().registerEvents(new PlayerQuitListener(this), this);
 
             // 직업 시스템 리스너
             if (jobManager != null) {
-                getServer().getPluginManager().registerEvents(jobManager, this);
-                getServer().getPluginManager().registerEvents(new JobGUIListener(this), this);
+                getServer().getPluginManager().registerEvents(new JobListener(this), this);
             }
 
             // 강화 시스템 리스너
             if (enchantUpgradeManager != null) {
-                getServer().getPluginManager().registerEvents(enchantUpgradeManager, this);
-                getServer().getPluginManager().registerEvents(new UpgradeGUIListener(this), this);
-            }
-
-            // 도끼 공격속도 리스너
-            if (axeSpeedManager != null) {
-                getServer().getPluginManager().registerEvents(axeSpeedManager, this);
+                getServer().getPluginManager().registerEvents(new UpgradeListener(this), this);
             }
 
             // 드래곤 보상 리스너
             if (dragonRewardManager != null) {
-                getServer().getPluginManager().registerEvents(dragonRewardManager, this);
+                getServer().getPluginManager().registerEvents(new DragonListener(this), this);
             }
 
             // NPC 교환 리스너
             if (npcTradeManager != null) {
-                getServer().getPluginManager().registerEvents(npcTradeManager, this);
+                getServer().getPluginManager().registerEvents(new NPCTradeListener(this), this);
             }
 
-            // 엔더 리스너 (새로 추가)
+            // 엔더 리셋 리스너
             if (enderResetManager != null) {
-                getServer().getPluginManager().registerEvents(new EnderListener(this), this);
-                getLogger().info("✅ 엔더 리스너 등록 완료");
+                getServer().getPluginManager().registerEvents(new EnderResetListener(this), this);
             }
 
-            getLogger().info("✅ 모든 이벤트 리스너 등록 완료");
+            getLogger().info("모든 이벤트 리스너 등록 완료");
 
         } catch (Exception e) {
+            getLogger().log(Level.SEVERE, "리스너 등록 실패", e);
             throw new RuntimeException("리스너 등록 실패", e);
         }
     }
 
     /**
-     * 스코어보드 통합 반환 (JobManager 호환성)
-     */
-    public ScoreboardIntegration getScoreboardIntegration() {
-        if (jobManager != null) {
-            return jobManager.getScoreboardIntegration();
-        }
-        return null;
-    }
-
-    /**
-     * EnderResetManager 재초기화 (리로드용)
-     */
-    public void reinitializeEnderResetManager() {
-        try {
-            if (getConfig().getBoolean("ender_reset_system.enabled", false)) {
-                getLogger().info("EnderResetManager 재초기화 중...");
-                enderResetManager = new EnderResetManager(this);
-
-                // 새 리스너 등록
-                getServer().getPluginManager().registerEvents(new EnderListener(this), this);
-
-                getLogger().info("✅ EnderResetManager 재초기화 완료");
-            } else {
-                enderResetManager = null;
-                getLogger().info("⚠️ EnderResetManager 비활성화됨");
-            }
-        } catch (Exception e) {
-            getLogger().log(Level.SEVERE, "EnderResetManager 재초기화 실패", e);
-            enderResetManager = null;
-        }
-    }
-
-    /**
-     * 스케줄러 시작 - 성능 최적화 및 오류 수정
+     * 스케줄러 시작
      */
     private void startSchedulers() {
         try {
-            // 자동 저장 (5분마다)
+            // 자동 저장 태스크 (5분마다)
             autoSaveTask = getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-                if (!shutdownInProgress && initialized) {
-                    try {
-                        saveAllPlayerData();
-                    } catch (Exception e) {
-                        getLogger().log(Level.WARNING, "자동 저장 중 오류", e);
-                    }
+                try {
+                    saveAllPlayerData();
+                } catch (Exception e) {
+                    getLogger().log(Level.WARNING, "자동 저장 중 오류", e);
                 }
-            }, 6000L, 6000L); // 5분 간격
+            }, 6000L, 6000L); // 5분 = 6000틱
 
-            // 메모리 정리 (30분마다) - 오타 수정: getSchedu -> getScheduler()
+            // 메모리 정리 태스크 (30분마다)
             memoryCleanupTask = getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-                if (!shutdownInProgress && initialized) {
-                    try {
-                        performMemoryCleanup();
-                    } catch (Exception e) {
-                        getLogger().log(Level.WARNING, "메모리 정리 중 오류", e);
-                    }
+                try {
+                    cleanupMemory();
+                } catch (Exception e) {
+                    getLogger().log(Level.WARNING, "메모리 정리 중 오류", e);
                 }
-            }, 36000L, 36000L); // 30분 간격
+            }, 36000L, 36000L); // 30분 = 36000틱
 
-            getLogger().info("✅ 스케줄러 시작 완료");
+            getLogger().info("모든 스케줄러 태스크 시작 완료");
 
         } catch (Exception e) {
-            getLogger().log(Level.WARNING, "스케줄러 시작 실패", e);
-            throw new RuntimeException("스케줄러 시작 실패", e);
+            getLogger().log(Level.SEVERE, "스케줄러 시작 실패", e);
         }
     }
 
@@ -453,64 +394,50 @@ public class GGMSurvival extends JavaPlugin {
             try {
                 int savedCount = 0;
 
-                if (jobManager != null) {
-                    for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
-                        try {
-                            jobManager.savePlayerJobData(player);
-                            savedCount++;
-                        } catch (Exception e) {
-                            getLogger().log(Level.WARNING,
-                                    "플레이어 데이터 저장 실패: " + player.getName(), e);
+                for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
+                    try {
+                        // 각 매니저의 플레이어 데이터 저장
+                        if (jobManager != null) {
+                            jobManager.savePlayerData(player).join();
                         }
+
+                        // 추가 매니저들도 필요시 저장
+                        savedCount++;
+
+                    } catch (Exception e) {
+                        getLogger().log(Level.WARNING,
+                                "플레이어 데이터 저장 실패: " + player.getName(), e);
                     }
                 }
 
-                getLogger().fine("플레이어 데이터 자동 저장 완료 (" + savedCount + "명)");
+                if (savedCount > 0) {
+                    getLogger().info(savedCount + "명의 플레이어 데이터 저장 완료");
+                }
 
             } catch (Exception e) {
-                getLogger().log(Level.WARNING, "전체 데이터 저장 중 오류", e);
+                getLogger().log(Level.SEVERE, "전체 플레이어 데이터 저장 실패", e);
             }
         });
     }
 
     /**
-     * 메모리 정리 개선 (엔더 시스템 포함)
+     * 메모리 정리
      */
-    private void performMemoryCleanup() {
+    private void cleanupMemory() {
         try {
-            long beforeMemory = getUsedMemory();
-
-            // 매니저들의 캐시 정리
+            // 각 매니저의 캐시 정리
             if (jobManager != null) {
                 jobManager.cleanupCache();
             }
 
-            // 엔더 시스템 캐시 정리 (새로 추가)
-            if (enderResetManager != null) {
-                enderResetManager.cleanupCache();
+            if (axeSpeedManager != null) {
+                axeSpeedManager.cleanupCache();
             }
 
-            // 리플렉션을 통한 안전한 메소드 호출
-            cleanupManagerSafely(enchantUpgradeManager, "EnchantUpgradeManager");
-            cleanupManagerSafely(dragonRewardManager, "DragonRewardManager");
-
-            // 데이터베이스 매니저 유지보수
-            if (databaseManager != null) {
-                try {
-                    databaseManager.getClass().getMethod("performMaintenance").invoke(databaseManager);
-                } catch (Exception ignored) {
-                    // performMaintenance 메소드가 없으면 무시
-                }
-            }
-
-            // 가비지 컬렉션 권고 (강제 X)
+            // 시스템 GC 제안
             System.gc();
 
-            long afterMemory = getUsedMemory();
-            long cleanedMemory = beforeMemory - afterMemory;
-
-            getLogger().info(String.format("✅ 메모리 정리 완료 (정리량: %.2f MB)",
-                    cleanedMemory / 1024.0 / 1024.0));
+            getLogger().info("메모리 정리 완료");
 
         } catch (Exception e) {
             getLogger().log(Level.WARNING, "메모리 정리 중 오류", e);
@@ -518,47 +445,21 @@ public class GGMSurvival extends JavaPlugin {
     }
 
     /**
-     * 매니저 안전 캐시 정리
-     */
-    private void cleanupManagerSafely(Object manager, String managerName) {
-        if (manager == null) return;
-
-        try {
-            manager.getClass().getMethod("cleanupCache").invoke(manager);
-            getLogger().fine(managerName + " 캐시 정리 완료");
-        } catch (Exception ignored) {
-            // cleanupCache 메소드가 없으면 무시
-        }
-    }
-
-    /**
-     * 현재 사용 중인 메모리 계산
-     */
-    private long getUsedMemory() {
-        Runtime runtime = Runtime.getRuntime();
-        return runtime.totalMemory() - runtime.freeMemory();
-    }
-
-    /**
-     * 스케줄러 정리 개선
+     * 스케줄러 정리
      */
     private void cleanupSchedulers() {
         try {
-            getLogger().info("스케줄러 정리 중...");
-
             if (autoSaveTask != null && !autoSaveTask.isCancelled()) {
                 autoSaveTask.cancel();
-                getLogger().info("✅ 자동 저장 태스크 취소됨");
             }
 
             if (memoryCleanupTask != null && !memoryCleanupTask.isCancelled()) {
                 memoryCleanupTask.cancel();
-                getLogger().info("✅ 메모리 정리 태스크 취소됨");
             }
 
-            // 모든 태스크 정리
+            // 모든 플러그인 태스크 취소
             getServer().getScheduler().cancelTasks(this);
-            getLogger().info("✅ 모든 스케줄러 태스크 정리 완료");
+            getLogger().info("모든 스케줄러 태스크 정리 완료");
 
         } catch (Exception e) {
             getLogger().log(Level.WARNING, "스케줄러 정리 중 오류", e);
@@ -566,7 +467,7 @@ public class GGMSurvival extends JavaPlugin {
     }
 
     /**
-     * 매니저들 안전 종료 (엔더 시스템 포함)
+     * 매니저들 안전 종료
      */
     private void shutdownManagers() {
         try {
@@ -574,10 +475,10 @@ public class GGMSurvival extends JavaPlugin {
 
             // 역순으로 종료 (초기화 순서의 반대)
 
-            // 엔더 리셋 매니저 먼저 종료 (다른 시스템에 영향 줄 수 있으므로)
+            // 엔더 리셋 매니저 먼저 종료
             if (enderResetManager != null) {
                 enderResetManager.shutdown();
-                getLogger().info("✅ EnderResetManager 종료 완료");
+                getLogger().info("EnderResetManager 종료 완료");
             }
 
             if (npcTradeManager != null) {
@@ -589,7 +490,8 @@ public class GGMSurvival extends JavaPlugin {
             }
 
             if (axeSpeedManager != null) {
-                safeShutdown(axeSpeedManager, "AxeSpeedManager");
+                axeSpeedManager.onDisable();
+                getLogger().info("AxeSpeedManager 종료 완료");
             }
 
             if (enchantUpgradeManager != null) {
@@ -598,7 +500,7 @@ public class GGMSurvival extends JavaPlugin {
 
             if (jobManager != null) {
                 jobManager.shutdown();
-                getLogger().info("✅ JobManager 종료 완료");
+                getLogger().info("JobManager 종료 완료");
             }
 
             if (economyManager != null) {
@@ -608,10 +510,10 @@ public class GGMSurvival extends JavaPlugin {
             // 데이터베이스 매니저는 마지막에 종료
             if (databaseManager != null) {
                 databaseManager.closeConnection();
-                getLogger().info("✅ DatabaseManager 종료 완료");
+                getLogger().info("DatabaseManager 종료 완료");
             }
 
-            getLogger().info("✅ 모든 매니저 안전 종료 완료");
+            getLogger().info("모든 매니저 안전 종료 완료");
 
         } catch (Exception e) {
             getLogger().log(Level.WARNING, "매니저 종료 중 오류", e);
@@ -624,69 +526,54 @@ public class GGMSurvival extends JavaPlugin {
     private void safeShutdown(Object manager, String managerName) {
         try {
             manager.getClass().getMethod("shutdown").invoke(manager);
-            getLogger().info("✅ " + managerName + " 종료 완료");
+            getLogger().info(managerName + " 종료 완료");
         } catch (Exception e) {
             getLogger().log(Level.WARNING, managerName + " 종료 중 오류", e);
         }
     }
 
     /**
-     * 성공적인 초기화 로그 (향상됨)
+     * 성공적인 초기화 로그
      */
     private void logSuccessfulInitialization() {
         getLogger().info("==========================================");
-        getLogger().info("   🎉 GGMSurvival 초기화 완료! 🎉");
+        getLogger().info("   GGMSurvival 초기화 완료!");
         getLogger().info("==========================================");
-        getLogger().info("🔧 활성화된 시스템:");
+        getLogger().info("활성화된 시스템:");
 
         if (jobManager != null) {
-            getLogger().info("  ✅ 직업 시스템 (탱커, 전사, 궁수)");
+            getLogger().info("- 직업 시스템: 활성화");
         }
 
         if (enchantUpgradeManager != null) {
-            getLogger().info("  ✅ 강화 시스템 (1~10강)");
+            getLogger().info("- 강화 시스템: 활성화");
         }
 
         if (axeSpeedManager != null) {
-            getLogger().info("  ✅ 도끼 공격속도 시스템");
+            getLogger().info("- 도끼 속도 시스템: 활성화");
         }
 
         if (dragonRewardManager != null) {
-            getLogger().info("  ✅ 드래곤 보상 시스템");
+            getLogger().info("- 드래곤 보상 시스템: 활성화");
         }
 
         if (npcTradeManager != null) {
-            getLogger().info("  ✅ NPC 교환 시스템");
+            getLogger().info("- NPC 교환 시스템: 활성화");
         }
 
         if (enderResetManager != null) {
-            getLogger().info("  ✅ 엔더 자동 리셋 시스템");
-            getLogger().info("    └ 리셋 시간: 매일 " +
-                    String.format("%02d:%02d", enderResetManager.getResetHour(), enderResetManager.getResetMinute()));
-            getLogger().info("    └ 엔드시티 차단: " +
-                    (enderResetManager.isEndCityBlockingEnabled() ? "활성화" : "비활성화"));
+            getLogger().info("- 엔더 리셋 시스템: 활성화");
         }
 
-        getLogger().info("");
-        getLogger().info("🗄️ 데이터베이스: " + databaseManager.getDatabaseInfo() + " (HikariCP)");
-
-        if (economyManager != null) {
-            try {
-                boolean ggmCoreConnected = (Boolean) economyManager.getClass()
-                        .getMethod("isGGMCoreConnected").invoke(economyManager);
-                getLogger().info("💰 GGMCore 연동: " + (ggmCoreConnected ? "활성화" : "독립 모드"));
-            } catch (Exception e) {
-                getLogger().info("💰 GGMCore 연동: 독립 모드");
-            }
+        if (economyManager != null && economyManager.isGGMCoreConnected()) {
+            getLogger().info("- GGMCore 경제 연동: 성공");
         }
 
-        getLogger().info("📊 온라인 플레이어: " + getServer().getOnlinePlayers().size() + "명");
-        getLogger().info("🔧 서버 버전: " + getServer().getVersion());
+        getLogger().info("서버 준비 완료! 플레이어 접속 대기 중...");
         getLogger().info("==========================================");
     }
 
-    // === Getter 메서드들 - Thread-Safe ===
-
+    // Getter 메서드들
     public static GGMSurvival getInstance() {
         return instance;
     }
@@ -715,35 +602,19 @@ public class GGMSurvival extends JavaPlugin {
         return dragonRewardManager;
     }
 
-    public NPCTradeManager getNpcTradeManager() {
+    public NPCTradeManager getNPCTradeManager() {
         return npcTradeManager;
     }
 
-    // 새로 추가된 Getter
     public EnderResetManager getEnderResetManager() {
         return enderResetManager;
     }
 
     public boolean isInitialized() {
-        return initialized && !shutdownInProgress;
+        return initialized;
     }
 
     public boolean isShuttingDown() {
         return shutdownInProgress;
-    }
-
-    /**
-     * 시스템 상태 요약
-     */
-    public String getSystemStatus() {
-        StringBuilder status = new StringBuilder();
-        status.append("GGMSurvival 상태:\n");
-        status.append("- 초기화됨: ").append(initialized).append("\n");
-        status.append("- 직업 시스템: ").append(jobManager != null ? "활성화" : "비활성화").append("\n");
-        status.append("- 강화 시스템: ").append(enchantUpgradeManager != null ? "활성화" : "비활성화").append("\n");
-        status.append("- 엔더 리셋: ").append(enderResetManager != null ? "활성화" : "비활성화").append("\n");
-        status.append("- 데이터베이스: ").append(databaseManager != null && databaseManager.isInitialized() ? "연결됨" : "연결 안됨");
-
-        return status.toString();
     }
 }

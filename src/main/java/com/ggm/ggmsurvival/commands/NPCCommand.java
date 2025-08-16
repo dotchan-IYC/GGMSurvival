@@ -1,192 +1,254 @@
+// 수정된 NPCCommand.java - 컴파일 오류 해결
 package com.ggm.ggmsurvival.commands;
 
 import com.ggm.ggmsurvival.GGMSurvival;
 import com.ggm.ggmsurvival.managers.NPCTradeManager;
-import com.ggm.ggmsurvival.managers.NPCTradeManager.NPCType;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Villager;
 
 import java.util.logging.Level;
 
 /**
- * 완전 안정화된 NPC 관리 명령어 처리기 (관리자 전용)
+ * NPC 관리 명령어 처리기
+ * - NPC 생성, 제거, 목록 조회
+ * - 관리자 전용 기능
  */
 public class NPCCommand implements CommandExecutor {
 
     private final GGMSurvival plugin;
-    private final NPCTradeManager npcManager;
 
     public NPCCommand(GGMSurvival plugin) {
         this.plugin = plugin;
-        this.npcManager = plugin.getNPCTradeManager();
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        // NPC 교환 시스템이 활성화되어 있는지 확인
+        if (!plugin.isFeatureEnabled("npc_trading")) {
+            sender.sendMessage("§cNPC 교환 시스템이 비활성화되어 있습니다.");
+            return true;
+        }
+
+        // NPCTradeManager 확인
+        NPCTradeManager npcManager = plugin.getNPCTradeManager();
+        if (npcManager == null) {
+            sender.sendMessage("§cNPC 교환 시스템을 사용할 수 없습니다.");
+            return true;
+        }
+
+        // 인게임 플레이어만 사용 가능
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("§c이 명령어는 플레이어만 사용할 수 있습니다.");
+            return true;
+        }
+
+        Player player = (Player) sender;
+
+        // 기본 권한 확인
+        if (!player.hasPermission("ggm.npc.use")) {
+            player.sendMessage("§c이 명령어를 사용할 권한이 없습니다.");
+            return true;
+        }
+
+        if (args.length == 0) {
+            showHelpCommand(player);
+            return true;
+        }
+
+        String subCommand = args[0].toLowerCase();
+
         try {
-            if (!sender.hasPermission("ggm.npc.admin")) {
-                sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.");
-                return true;
-            }
-
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage("§c이 명령어는 플레이어만 사용할 수 있습니다.");
-                return true;
-            }
-
-            if (npcManager == null) {
-                player.sendMessage("§cNPC 교환 시스템이 비활성화되어 있습니다.");
-                return true;
-            }
-
-            if (args.length == 0) {
-                showNPCHelp(player);
-                return true;
-            }
-
-            String subCommand = args[0].toLowerCase();
-
             switch (subCommand) {
                 case "create":
                 case "생성":
-                    handleCreateCommand(player, args);
-                    break;
+                    return handleCreateCommand(player, args);
 
                 case "remove":
                 case "제거":
-                    handleRemoveCommand(player);
-                    break;
+                    return handleRemoveCommand(player, args);
 
                 case "list":
                 case "목록":
-                    npcManager.showNPCList(player);
-                    break;
+                    return handleListCommand(player);
 
-                case "stats":
-                case "통계":
-                    showNPCStats(player);
-                    break;
+                case "info":
+                case "정보":
+                    return handleInfoCommand(player);
+
+                case "help":
+                case "도움말":
+                    return showHelpCommand(player);
 
                 default:
-                    player.sendMessage("§c알 수 없는 명령어입니다. §7/npc help §c를 참고하세요.");
-                    break;
+                    player.sendMessage("§c알 수 없는 명령어입니다. §e/npc help §c를 확인해주세요.");
+                    return true;
             }
 
-            return true;
-
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE,
-                    "NPC 명령어 처리 중 오류: " + sender.getName(), e);
-            sender.sendMessage("§c명령어 처리 중 오류가 발생했습니다.");
+            plugin.getLogger().log(Level.WARNING, "NPC 명령어 처리 중 오류: " + player.getName(), e);
+            player.sendMessage("§c명령어 처리 중 오류가 발생했습니다.");
             return true;
         }
     }
 
-    private void handleCreateCommand(Player player, String[] args) {
+    /**
+     * NPC 생성 명령어 처리
+     */
+    private boolean handleCreateCommand(Player player, String[] args) {
+        // 관리자 권한 확인
+        if (!player.hasPermission("ggm.npc.admin")) {
+            player.sendMessage("§c이 명령어를 사용할 권한이 없습니다.");
+            return true;
+        }
+
         if (args.length < 3) {
             player.sendMessage("§c사용법: /npc create <타입> <이름>");
-            player.sendMessage("§7타입: item, resource, special");
-            return;
+            player.sendMessage("§7타입: item_trader, resource_trader, special_trader");
+            return true;
         }
 
         try {
-            NPCType type = parseNPCType(args[1]);
-            if (type == null) {
-                player.sendMessage("§c올바르지 않은 NPC 타입입니다: " + args[1]);
-                player.sendMessage("§7사용 가능한 타입: item, resource, special");
-                return;
-            }
-
+            String typeStr = args[1].toUpperCase();
             String name = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
+
+            // NPC 타입 검증
+            NPCTradeManager.NPCType npcType;
+            try {
+                npcType = NPCTradeManager.NPCType.valueOf(typeStr);
+            } catch (IllegalArgumentException e) {
+                player.sendMessage("§c잘못된 NPC 타입입니다.");
+                player.sendMessage("§7사용 가능한 타입: ITEM_TRADER, RESOURCE_TRADER, SPECIAL_TRADER");
+                return true;
+            }
+
+            // 이름 길이 제한
             if (name.length() > 20) {
-                player.sendMessage("§cNPC 이름은 20자를 초과할 수 없습니다.");
-                return;
+                player.sendMessage("§cNPC 이름은 20자 이하여야 합니다.");
+                return true;
             }
 
-            boolean success = npcManager.createNPC(type, name, player.getLocation(), player);
+            // 플레이어 위치에서 NPC 생성
+            Location location = player.getLocation();
+
+            NPCTradeManager npcManager = plugin.getNPCTradeManager();
+            boolean success = npcManager.createNPC(npcType, name, location, player);
 
             if (success) {
-                plugin.getLogger().info(String.format("[NPC생성] %s이(가) %s 타입 NPC '%s'를 생성했습니다.",
-                        player.getName(), type.name(), name));
+                player.sendMessage("§aNPC '" + name + "'이(가) 생성되었습니다!");
+                player.sendMessage("§7타입: " + npcType.getDisplayName());
+            } else {
+                player.sendMessage("§cNPC 생성에 실패했습니다.");
             }
 
+            return true;
+
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "NPC 생성 명령어 처리 중 오류: " + player.getName(), e);
+            plugin.getLogger().log(Level.WARNING, "NPC 생성 중 오류: " + player.getName(), e);
             player.sendMessage("§cNPC 생성 중 오류가 발생했습니다.");
+            return true;
         }
     }
 
-    private void handleRemoveCommand(Player player) {
+    /**
+     * NPC 제거 명령어 처리
+     */
+    private boolean handleRemoveCommand(Player player, String[] args) {
+        // 관리자 권한 확인
+        if (!player.hasPermission("ggm.npc.admin")) {
+            player.sendMessage("§c이 명령어를 사용할 권한이 없습니다.");
+            return true;
+        }
+
+        player.sendMessage("§e가까이 있는 NPC를 우클릭하여 제거하거나,");
+        player.sendMessage("§e/npc list 명령어로 NPC 목록을 확인한 후 직접 접근해주세요.");
+
+        return true;
+    }
+
+    /**
+     * NPC 목록 명령어 처리
+     */
+    private boolean handleListCommand(Player player) {
         try {
-            // 플레이어가 바라보고 있는 엔티티 확인
-            var targetEntity = player.getTargetEntity(5);
-
-            if (targetEntity == null) {
-                player.sendMessage("§c제거할 NPC를 바라보고 명령어를 사용해주세요.");
-                return;
-            }
-
-            if (!(targetEntity instanceof Villager)) {
-                player.sendMessage("§c바라보고 있는 대상이 NPC가 아닙니다.");
-                return;
-            }
-
-            boolean success = npcManager.removeNPC(targetEntity.getUniqueId(), player);
-
-            if (success) {
-                plugin.getLogger().info(String.format("[NPC제거] %s이(가) NPC를 제거했습니다.",
-                        player.getName()));
-            }
+            NPCTradeManager npcManager = plugin.getNPCTradeManager();
+            npcManager.showNPCList(player);
+            return true;
 
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING,
-                    "NPC 제거 명령어 처리 중 오류: " + player.getName(), e);
-            player.sendMessage("§cNPC 제거 중 오류가 발생했습니다.");
+            plugin.getLogger().log(Level.WARNING, "NPC 목록 조회 중 오류: " + player.getName(), e);
+            player.sendMessage("§cNPC 목록 조회 중 오류가 발생했습니다.");
+            return true;
         }
     }
 
-    private void showNPCHelp(Player player) {
-        player.sendMessage("§6==========================================");
-        player.sendMessage("§e§lNPC 관리 시스템 (관리자 전용)");
-        player.sendMessage("");
-        player.sendMessage("§a명령어:");
-        player.sendMessage("§7• §e/npc create <타입> <이름> §7- NPC 생성");
-        player.sendMessage("§7• §e/npc remove §7- 바라보는 NPC 제거");
-        player.sendMessage("§7• §e/npc list §7- NPC 목록 보기");
-        player.sendMessage("§7• §e/npc stats §7- NPC 통계");
-        player.sendMessage("");
-        player.sendMessage("§aNPC 타입:");
-        player.sendMessage("§7• §eitem §7- 아이템 상인");
-        player.sendMessage("§7• §eresource §7- 자원 상인");
-        player.sendMessage("§7• §especial §7- 특수 상인");
-        player.sendMessage("§6==========================================");
+    /**
+     * NPC 정보 명령어 처리
+     */
+    private boolean handleInfoCommand(Player player) {
+        try {
+            NPCTradeManager npcManager = plugin.getNPCTradeManager();
+
+            player.sendMessage("§6==========================================");
+            player.sendMessage("§e§lNPC 교환 시스템 정보");
+            player.sendMessage("");
+            player.sendMessage("§a시스템 상태: §f활성화");
+            player.sendMessage("§a통계: §f" + npcManager.getNPCStats());
+            player.sendMessage("");
+            player.sendMessage("§eNPC 타입:");
+
+            for (NPCTradeManager.NPCType type : NPCTradeManager.NPCType.values()) {
+                player.sendMessage("§7• §a" + type.getDisplayName() + "§7: " + type.getDescription());
+            }
+
+            player.sendMessage("");
+            player.sendMessage("§7우클릭으로 NPC와 거래할 수 있습니다.");
+            player.sendMessage("§6==========================================");
+
+            return true;
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "NPC 정보 조회 중 오류: " + player.getName(), e);
+            player.sendMessage("§cNPC 정보 조회 중 오류가 발생했습니다.");
+            return true;
+        }
     }
 
-    private void showNPCStats(Player player) {
-        player.sendMessage("§6==========================================");
-        player.sendMessage("§e§lNPC 시스템 통계");
-        player.sendMessage("");
-        player.sendMessage("§7" + npcManager.getNPCStats());
-        player.sendMessage("§6==========================================");
-    }
+    /**
+     * 도움말 명령어 처리
+     */
+    private boolean showHelpCommand(Player player) {
+        try {
+            boolean isAdmin = player.hasPermission("ggm.npc.admin");
 
-    private NPCType parseNPCType(String typeStr) {
-        switch (typeStr.toLowerCase()) {
-            case "item":
-            case "아이템":
-                return NPCType.ITEM_TRADER;
-            case "resource":
-            case "자원":
-                return NPCType.RESOURCE_TRADER;
-            case "special":
-            case "특수":
-                return NPCType.SPECIAL_TRADER;
-            default:
-                return null;
+            player.sendMessage("§6==========================================");
+            player.sendMessage("§e§lNPC 시스템 도움말");
+            player.sendMessage("");
+            player.sendMessage("§a일반 명령어:");
+            player.sendMessage("§7• §e/npc list §7- NPC 목록 조회");
+            player.sendMessage("§7• §e/npc info §7- 시스템 정보");
+
+            if (isAdmin) {
+                player.sendMessage("");
+                player.sendMessage("§c관리자 명령어:");
+                player.sendMessage("§7• §e/npc create <타입> <이름> §7- NPC 생성");
+                player.sendMessage("§7• §e/npc remove §7- NPC 제거 (우클릭)");
+                player.sendMessage("");
+                player.sendMessage("§7NPC 타입: item_trader, resource_trader, special_trader");
+            }
+
+            player.sendMessage("");
+            player.sendMessage("§7NPC를 우클릭하여 거래를 시작할 수 있습니다.");
+            player.sendMessage("§6==========================================");
+
+            return true;
+
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "NPC 도움말 표시 중 오류: " + player.getName(), e);
+            player.sendMessage("§c도움말 조회 중 오류가 발생했습니다.");
+            return true;
         }
     }
 }
