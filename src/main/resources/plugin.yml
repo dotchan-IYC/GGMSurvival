@@ -1,104 +1,354 @@
-name: GGMSurvival
-version: '1.0-SNAPSHOT'
-main: com.ggm.ggmsurvival.GGMSurvival
-api-version: 1.20
-authors: [ DotC ]
-description: GGM 멀티 서버 통합 플러그인 - 직업 시스템 및 야생 서버 전용 기능
-website: https://ggm.server.com
-depend: []
-softdepend: [GGMCore]
+# GGMSurvival v2.0 Enhanced UI 설정 파일
+# 새로운 스킬 관리, 통계, 업적 시스템이 추가되었습니다.
 
-commands:
-  job:
-    description: 직업 선택 및 관리
-    usage: /job [select|info|list]
-    aliases: [jobs, 직업]
-    permission: ggm.job
+# 데이터베이스 설정
+database:
+  host: "localhost"
+  port: 3306
+  database: "ggm_server"
+  username: "root"
+  password: "1224"
 
-  upgrade:
-    description: 아이템 강화 정보
-    usage: /upgrade [info|guide|rates|costs]
-    aliases: [강화, enhance]
-    permission: ggm.upgrade
+# 직업 시스템 설정 (Enhanced v2.0)
+job_system:
+  enabled: true
+  force_job_selection: true          # 접속 시 직업 선택 강제
+  allow_job_change: true             # 직업 변경 허용 (유료)
+  job_selection_delay: 60            # 접속 후 직업 선택 안내 지연 (초)
+  max_job_level: 10                  # 최대 직업 레벨
+  prestige_system: false             # 프레스티지 시스템 (추후 업데이트)
+  
+  # 새로운 UI 시스템 설정
+  ui_system:
+    skill_gui_enabled: true          # 스킬 관리 GUI 활성화
+    stats_gui_enabled: true          # 상세 통계 GUI 활성화
+    achievement_gui_enabled: true    # 업적 시스템 GUI 활성화
+    real_time_updates: true          # 실시간 업데이트
+    progress_bars: true              # 진행률 바 표시
+    sound_effects: true              # 효과음 활성화
+    particle_effects: true           # 파티클 효과
 
-  npc:
-    description: NPC 교환상 관리 (OP 전용)
-    usage: /npc <create|remove|list> [이름]
-    permission: ggm.npc.admin
+  # 경험치 설정
+  experience:
+    # 레벨업 필요 경험치
+    requirements:
+      1: 0        # 1레벨: 기본
+      2: 100      # 2레벨: 100exp
+      3: 250      # 3레벨: 250exp
+      4: 500      # 4레벨: 500exp
+      5: 800      # 5레벨: 800exp (특수 능력)
+      6: 1200     # 6레벨: 1200exp
+      7: 1700     # 7레벨: 1700exp
+      8: 2300     # 8레벨: 2300exp
+      9: 3000     # 9레벨: 3000exp
+      10: 3800    # 10레벨: 3800exp (최대)
 
-  trade:
-    description: NPC와 아이템 교환
-    usage: /trade
-    aliases: [교환]
-    permission: ggm.trade
+    # 몬스터별 경험치
+    monster_exp:
+      # 일반 몬스터
+      ZOMBIE: 10
+      SKELETON: 10
+      SPIDER: 8
+      CREEPER: 12
+      SLIME: 5
+      CAVE_SPIDER: 8
+      SILVERFISH: 3
 
-  dragon:
-    description: 드래곤 처치 기록 확인
-    usage: /dragon [info|today|history]
-    aliases: [드래곤]
-    permission: ggm.dragon
+      # 중간 몬스터
+      ENDERMAN: 25
+      WITCH: 20
+      PILLAGER: 15
+      VINDICATOR: 18
+      EVOKER: 30
+      RAVAGER: 35
 
-  survival:
-    description: 야생 서버 정보 및 관리
-    usage: /survival [info|reload|stats]
-    aliases: [야생, ggmsurvival]
-    permission: ggm.survival
+      # 강한 몬스터
+      WITHER_SKELETON: 40
+      BLAZE: 30
+      GHAST: 35
+      PIGLIN_BRUTE: 25
 
-permissions:
-  # 기본 플레이어 권한
-  ggm.job:
-    description: 직업 시스템 사용
-    default: true
+      # 보스 몬스터
+      ENDER_DRAGON: 1000
+      WITHER: 500
+      ELDER_GUARDIAN: 200
+      WARDEN: 300
 
-  ggm.upgrade:
-    description: 강화 시스템 사용
-    default: true
+    # 경험치 보너스 설정
+    bonuses:
+      weekend_multiplier: 1.5         # 주말 경험치 1.5배
+      party_bonus: 1.2               # 파티 플레이 시 20% 보너스
+      combo_bonus: 1.1               # 연속 처치 시 10% 보너스
+      daily_first_bonus: 2.0         # 일일 첫 경험치 2배
 
-  ggm.trade:
-    description: NPC 교환 사용
-    default: true
+  # 직업별 능력 설정
+  jobs:
+    tank:
+      # 기본 능력
+      base_health_bonus: 2.0         # 기본 체력 보너스 (하트 1개)
+      armor_effectiveness: 1.2       # 방어구 효율 20% 증가
+      
+      # 레벨별 능력
+      level_abilities:
+        3:
+          shield_heal_amount: 1.0    # 방패 회복량
+          shield_cooldown: 3000      # 방패 회복 쿨다운 (밀리초)
+        5:
+          special_ability: "UNDYING_WILL"  # 불굴의 의지
+          health_bonus: 4.0          # 추가 체력 (하트 2개)
+          damage_reduction: 0.3      # 저체력 시 데미지 감소 30%
+        7:
+          taunt_range: 10            # 도발 범위
+          taunt_cooldown: 30000      # 도발 쿨다운
+        10:
+          ultimate_ability: "INVINCIBLE_BARRIER"  # 무적 방벽
+          ultimate_duration: 10000   # 지속시간 10초
+          ultimate_cooldown: 86400000 # 1일 쿨다운
 
-  ggm.dragon:
-    description: 드래곤 정보 확인
-    default: true
+    warrior:
+      # 기본 능력
+      sword_damage_bonus: 0.1        # 검 데미지 10% 증가
+      attack_speed_bonus: 0.05       # 공격속도 5% 증가
+      
+      # 레벨별 능력
+      level_abilities:
+        3:
+          combo_system: true         # 연속 베기 시스템
+          max_combo_stacks: 3        # 최대 콤보 스택
+          combo_damage_per_stack: 0.1 # 스택당 데미지 증가 10%
+        5:
+          special_ability: "CRITICAL_MASTERY"  # 치명타 숙련
+          critical_chance_bonus: 0.2  # 크리티컬 확률 20% 증가
+          critical_damage_bonus: 0.5  # 크리티컬 데미지 50% 증가
+        7:
+          dash_attack: true          # 돌진 베기
+          dash_range: 8              # 돌진 거리
+          dash_cooldown: 20000       # 쿨다운 20초
+        10:
+          ultimate_ability: "WHIRLWIND_SLASH"  # 광풍 베기
+          ultimate_range: 15         # 범위
+          ultimate_damage_multiplier: 3.0  # 데미지 3배
+          ultimate_cooldown: 86400000 # 1일 쿨다운
 
-  ggm.survival:
-    description: 야생 서버 기본 정보
-    default: true
+    archer:
+      # 기본 능력
+      bow_damage_bonus: 0.15         # 활 데미지 15% 증가
+      arrow_speed_bonus: 0.2         # 화살 속도 20% 증가
+      
+      # 레벨별 능력
+      level_abilities:
+        3:
+          leather_boots_speed: true  # 가죽 부츠 착용 시 이동속도 증가
+          speed_bonus: 0.3           # 이동속도 30% 증가
+        5:
+          special_ability: "PRECISION_SHOT"  # 정밀 사격
+          long_range_threshold: 30   # 장거리 기준 (블록)
+          headshot_chance_bonus: 0.3 # 헤드샷 확률 30% 증가
+        7:
+          piercing_arrows: true      # 관통 화살
+          max_pierce_targets: 3      # 최대 관통 대상
+          pierce_damage_reduction: 0.1 # 관통 시 데미지 감소 10%
+        10:
+          ultimate_ability: "ARROW_STORM"  # 화살 폭풍
+          ultimate_arrows: 10        # 발사할 화살 수
+          ultimate_explosion: true   # 화살 폭발 효과
+          ultimate_cooldown: 86400000 # 1일 쿨다운
 
-  # 관리자 권한
-  ggm.job.admin:
-    description: 직업 시스템 관리
-    default: op
+# 새로운 강화 시스템 (제한적)
+upgrade_system:
+  enabled: true
+  # 강화 가능한 아이템만 제한
+  allowed_items:
+    - WOODEN_SWORD
+    - STONE_SWORD
+    - IRON_SWORD
+    - GOLDEN_SWORD
+    - DIAMOND_SWORD
+    - NETHERITE_SWORD
+    - WOODEN_AXE
+    - STONE_AXE
+    - IRON_AXE
+    - GOLDEN_AXE
+    - DIAMOND_AXE
+    - NETHERITE_AXE
+    - BOW
+    - CROSSBOW
+    - LEATHER_CHESTPLATE
+    - CHAINMAIL_CHESTPLATE
+    - IRON_CHESTPLATE
+    - GOLDEN_CHESTPLATE
+    - DIAMOND_CHESTPLATE
+    - NETHERITE_CHESTPLATE
+  
+  max_level: 10                    # 최대 강화 단계
+  cost_per_level:                  # G 비용 (레벨별)
+    1: 1000
+    2: 2000
+    3: 4000
+    4: 8000
+    5: 16000
+    6: 32000
+    7: 64000
+    8: 128000
+    9: 256000
+    10: 512000
 
-  ggm.upgrade.admin:
-    description: 강화 시스템 관리
-    default: op
+  success_rates:                   # 성공률 (%)
+    1: 100
+    2: 95
+    3: 90
+    4: 85
+    5: 80
+    6: 70
+    7: 60
+    8: 50
+    9: 40
+    10: 30
 
-  ggm.npc.admin:
-    description: NPC 관리
-    default: op
+# 드래곤 보상 시스템
+dragon_reward:
+  enabled: true
+  reward_amount: 100000            # 보상 G
+  daily_reset: true                # 일일 리셋
+  reset_time: "00:00"              # 리셋 시간 (HH:MM)
+  broadcast_kill: true             # 처치 시 전체 공지
+  particle_effects: true           # 파티클 효과
 
-  ggm.dragon.admin:
-    description: 드래곤 시스템 관리
-    default: op
+# NPC 교환 시스템
+npc_trading:
+  enabled: true
+  # NPC 교환 비율 설정
+  exchange_rates:
+    # 블록류
+    COBBLESTONE: 1                 # 조약돌 1개 = 1G
+    STONE: 2                       # 돌 1개 = 2G
+    IRON_ORE: 50                   # 철광석 1개 = 50G
+    GOLD_ORE: 100                  # 금광석 1개 = 100G
+    DIAMOND_ORE: 500               # 다이아 광석 1개 = 500G
+    EMERALD_ORE: 300               # 에메랄드 광석 1개 = 300G
+    
+    # 아이템류
+    IRON_INGOT: 75                 # 철괴 1개 = 75G
+    GOLD_INGOT: 150                # 금괴 1개 = 150G
+    DIAMOND: 750                   # 다이아 1개 = 750G
+    EMERALD: 450                   # 에메랄드 1개 = 450G
+    
+    # 음식류
+    COOKED_BEEF: 10                # 익힌 소고기 1개 = 10G
+    BREAD: 5                       # 빵 1개 = 5G
+    GOLDEN_APPLE: 200              # 황금사과 1개 = 200G
 
-  ggm.survival.admin:
-    description: 야생 서버 관리
-    default: op
+# 새로운 통계 시스템
+statistics:
+  enabled: true
+  track_detailed_stats: true       # 상세 통계 추적
+  daily_stats_reset: true          # 일일 통계 리셋
+  weekly_summary: true             # 주간 요약
+  
+  # 추적할 통계 항목
+  tracked_stats:
+    - monster_kills
+    - boss_kills
+    - pvp_kills
+    - pvp_deaths
+    - damage_dealt
+    - damage_received
+    - healing_done
+    - experience_gained
+    - play_time
+    - skill_uses
+    - achievement_progress
 
-  # 전체 권한
-  ggm.*:
-    description: 모든 GGM 야생 권한
-    default: op
-    children:
-      ggm.job: true
-      ggm.upgrade: true
-      ggm.trade: true
-      ggm.dragon: true
-      ggm.survival: true
-      ggm.job.admin: true
-      ggm.upgrade.admin: true
-      ggm.npc.admin: true
-      ggm.dragon.admin: true
-      ggm.survival.admin: true
+# 새로운 업적 시스템
+achievement_system:
+  enabled: true
+  point_rewards: true              # 업적 점수 시스템
+  broadcast_achievements: true     # 업적 달성 전체 공지
+  rare_achievement_effects: true   # 레어 업적 특별 효과
+  
+  # 업적 상점 (업적 점수로 구매)
+  achievement_shop:
+    enabled: false                 # 추후 업데이트
+    items:
+      experience_boost: 1000       # 경험치 부스터 (1000점)
+      skill_reset_token: 2000      # 스킬 리셋 토큰 (2000점)
+      cosmetic_title: 500          # 칭호 (500점)
+
+# 서버별 기능 자동 설정
+server_features:
+  auto_detect: true                # 포트 기반 자동 감지
+  
+  # 포트별 기능 설정
+  port_configs:
+    25565:  # 로비 서버
+      job_system: true
+      upgrade_system: false
+      dragon_reward: false
+      npc_trading: false
+
+    25566:  # 건축 서버
+      job_system: true
+      upgrade_system: false
+      dragon_reward: false
+      npc_trading: false
+
+    25567:  # 야생 서버
+      job_system: true
+      upgrade_system: true
+      dragon_reward: true
+      npc_trading: true
+
+    25568:  # 마을 서버
+      job_system: true
+      upgrade_system: false
+      dragon_reward: false
+      npc_trading: false
+
+# 성능 최적화 설정
+performance:
+  cache_player_data: true          # 플레이어 데이터 캐싱
+  async_database_operations: true  # 비동기 데이터베이스 작업
+  batch_save_interval: 300         # 일괄 저장 간격 (초)
+  max_concurrent_gui: 50           # 최대 동시 GUI 사용자
+  
+  # 파티클 및 효과 제한
+  particle_limits:
+    levelup_particles: 20          # 레벨업 파티클 수
+    skill_particles: 10            # 스킬 파티클 수
+    achievement_particles: 30      # 업적 파티클 수
+
+# 디버그 및 로깅
+debug:
+  enabled: false                   # 디버그 모드
+  log_level: "INFO"                # 로그 레벨
+  log_database_queries: false      # 데이터베이스 쿼리 로깅
+  log_gui_interactions: false      # GUI 상호작용 로깅
+  performance_monitoring: true     # 성능 모니터링
+
+# 메시지 설정
+messages:
+  # 직업 시스템 메시지
+  job_selected: "§a{job} 직업을 선택했습니다!"
+  job_changed: "§e직업을 {old_job}에서 {new_job}로 변경했습니다!"
+  level_up: "§6§l레벨 업! §f{old_level} → {new_level}"
+  exp_gained: "§a+{amount} EXP §7({source})"
+  
+  # UI 관련 메시지
+  gui_opened: "§b{gui_name}을(를) 열었습니다."
+  gui_refresh: "§e정보를 새로고침했습니다."
+  
+  # 업적 메시지
+  achievement_completed: "§6§l업적 달성! §f{achievement}"
+  achievement_reward: "§a+{points} 업적 점수를 획득했습니다!"
+  
+  # 오류 메시지
+  no_job_selected: "§c먼저 직업을 선택해주세요!"
+  insufficient_funds: "§c{cost}G가 필요합니다!"
+  skill_on_cooldown: "§c스킬 쿨다운: {time}초 남음"
+
+# 백업 및 복구
+backup:
+  auto_backup: true                # 자동 백업
+  backup_interval: 24              # 백업 간격 (시간)
+  keep_backups: 7                  # 보관할 백업 수
+  backup_path: "plugins/GGMSurvival/backups/"
